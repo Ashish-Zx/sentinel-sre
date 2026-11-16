@@ -10,12 +10,27 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # --- Runtime / environment ---
+    app_env: str = "development"  # development | production
+    log_level: str = "INFO"
+
     # --- Database ---
     database_url: str = "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"
+
+    # --- CORS ---
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     # --- Clerk Auth ---
     clerk_jwks_url: str = ""
     clerk_issuer: str = ""
+
+    # --- Optional rate limiting (Upstash Redis REST) ---
+    upstash_redis_rest_url: str = ""
+    upstash_redis_rest_token: str = ""
+    rate_limit_rpm: int = 120
 
     # --- LLM providers (empty for now) ---
     openai_api_key: str = ""

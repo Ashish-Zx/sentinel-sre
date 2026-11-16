@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models.enums import AgentName, IncidentStatus
 from backend.models.incident import Incident
 from backend.models.llm_trace import LlmTrace
+from backend.services.graph import Graph, Node
 from backend.services.llm import run_agent, verify_patch
 
 # Model routing (mimics the cost-aware router)
@@ -137,6 +138,44 @@ async def _maybe_llm_summary(agent: AgentName, context: str, fallback: str) -> s
         return fallback
 
 
+async def _run_parallel_specialists(
+    context: str,
+) -> dict[str, dict]:
+    """Execute the 4 specialist agents concurrently via the graph orchestrator.
+
+    This fans out the specialists in parallel (LangGraph Send() semantics) and
+    returns a mapping of agent_name -> {summary, model, latency_ms, cost_usd}.
+    """
+    parallel_specs = {
+        "log_agent": (AgentName.log_agent, AGENT_STEPS[1]),
+        "git_agent": (AgentName.git_agent, AGENT_STEPS[2]),
+        "runbook_agent": (AgentName.runbook_agent, AGENT_STEPS[3]),
+        "security_agent": (AgentName.security_agent, AGENT_STEPS[4]),
+    }
+
+    async def make_node(name: str) -> Node:
+        agent_enum, spec = parallel_specs[name]
+
+        async def fn(state: dict) -> dict:
+            summary = await _maybe_llm_summary(agent_enum, context, spec["summary"])
+            return {
+                "agent_name": name,
+                "model_used": spec["model"],
+                "latency_ms": spec["latency_ms"],
+                "cost_usd": spec["cost_usd"],
+                "summary": summary,
+            }
+
+        return Node(key=name, fn=fn)
+
+    graph = Graph()
+    for name in parallel_specs:
+        graph.add_node(await make_node(name))
+
+    result = await graph.run({})
+    return {name: result[name] for name in parallel_specs}
+
+
 async def stream_investigation(
     incident_id: UUID, db: AsyncSession, context: str = ""
 ) -> AsyncGenerator[str, None]:
@@ -170,29 +209,31 @@ async def stream_investigation(
         }
     )
 
-    # 2. Four parallel specialists
-    parallel = [
-        (AgentName.log_agent, "log_agent"),
-        (AgentName.git_agent, "git_agent"),
-        (AgentName.runbook_agent, "runbook_agent"),
-        (AgentName.security_agent, "security_agent"),
-    ]
-    for _, name in parallel:
+    # 2. Four parallel specialists (fanned out concurrently via the graph)
+    parallel_names = ["log_agent", "git_agent", "runbook_agent", "security_agent"]
+    agent_enum_map = {
+        "log_agent": AgentName.log_agent,
+        "git_agent": AgentName.git_agent,
+        "runbook_agent": AgentName.runbook_agent,
+        "security_agent": AgentName.security_agent,
+    }
+    for name in parallel_names:
         yield _event({"type": "agent_started", "agent_name": name})
 
     await asyncio.sleep(0.2)
-    for agent_enum, name in parallel:
+    parallel_results = await _run_parallel_specialists(context)
+    for name in parallel_names:
+        res = parallel_results[name]
         s = next(x for x in AGENT_STEPS if x["agent_name"] == name)
-        await _record_trace(db, incident_id, s, agent_enum)
-        llm_summary = await _maybe_llm_summary(agent_enum, context, s["summary"])
+        await _record_trace(db, incident_id, s, agent_enum_map[name])
         yield _event(
             {
                 "type": "agent_completed",
                 "agent_name": name,
-                "model_used": s["model"],
-                "latency_ms": s["latency_ms"],
-                "cost_usd": s["cost_usd"],
-                "summary": llm_summary,
+                "model_used": res["model_used"],
+                "latency_ms": res["latency_ms"],
+                "cost_usd": res["cost_usd"],
+                "summary": res["summary"],
             }
         )
 

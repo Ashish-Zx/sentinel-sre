@@ -21,6 +21,9 @@ class Incident(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     title: Mapped[str] = mapped_column(String)
+    github_repo_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    deployed_commit_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    raw_error_trace: Mapped[str | None] = mapped_column(String, nullable=True)
     raw_error_log_s3_key: Mapped[str | None] = mapped_column(String, nullable=True)
     error_summary: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[IncidentStatus] = mapped_column(

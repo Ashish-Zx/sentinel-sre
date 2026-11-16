@@ -12,6 +12,23 @@ import httpx
 from backend.core.config import get_settings
 
 
+_GH_API = "https://api.github.com"
+
+import re
+
+
+def _slugify(value: str, max_len: int = 40) -> str:
+    """Make a git-ref-safe branch component from an arbitrary title."""
+    slug = re.sub(r"[^a-zA-Z0-9-]", "-", value).strip("-").lower()
+    return slug[:max_len].rstrip("-") or "hotfix"
+
+
+async def _gh_get(client, headers, url: str) -> dict:
+    r = await client.get(url, headers=headers)
+    r.raise_for_status()
+    return r.json()
+
+
 async def create_draft_pr(
     *,
     repo: str,
@@ -19,41 +36,82 @@ async def create_draft_pr(
     patch: str,
     target_file_path: str,
 ) -> str:
-    """Open a draft PR (or return a simulated URL if GitHub isn't configured)."""
+    """Open a real draft PR on GitHub (create branch -> commit -> PR).
+
+    Falls back to a simulated URL when no token is configured or the API call
+    fails, so the rest of the system keeps working in dev.
+    """
     settings = get_settings()
     repo = repo or settings.github_default_repo or "acme-corp/ecommerce-checkout-api"
 
     if not settings.github_access_token:
-        # Simulated outcome
         return f"https://github.com/{repo}/pull/draft"
 
-    # Real path: create branch, commit, open draft PR
-    async with httpx.AsyncClient() as client:
-        headers = {
-            "Authorization": f"Bearer {settings.github_access_token}",
-            "Accept": "application/vnd.github+json",
-        }
-        # Create a branch from the default branch
-        default_ref = await client.get(
-            f"https://api.github.com/repos/{repo}", headers=headers
-        )
-        default_branch = default_ref.json().get("default_branch", "main")
-        branch_name = f"sentinel-sre/hotfix/{title[:30].lower().replace(' ', '-')}"
-        # (full MCP implementation would create branch + commit + PR here)
-        pr = await client.post(
-            f"https://api.github.com/repos/{repo}/pulls",
-            headers=headers,
-            json={
-                "title": title,
-                "head": branch_name,
-                "base": default_branch,
-                "draft": True,
-                "body": f"Automated hotfix from SentinelSRE.\n\n{patch}",
-            },
-        )
-        if pr.status_code < 300:
-            data = pr.json()
-            return data.get("html_url", f"https://github.com/{repo}/pull/draft")
+    branch_name = f"sentinel-sre/hotfix/{_slugify(title)}"
+    headers = {
+        "Authorization": f"Bearer {settings.github_access_token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            # 1. Default branch + its head SHA
+            repo_info = await _gh_get(
+                client, headers, f"{_GH_API}/repos/{repo}"
+            )
+            default_branch = repo_info.get("default_branch", "main")
+            ref = await _gh_get(
+                client,
+                headers,
+                f"{_GH_API}/repos/{repo}/git/ref/heads/{default_branch}",
+            )
+            base_sha = ref["object"]["sha"]
+
+            # 2. Create a branch from the default branch
+            r = await client.post(
+                f"{_GH_API}/repos/{repo}/git/refs",
+                headers=headers,
+                json={
+                    "ref": f"refs/heads/{branch_name}",
+                    "sha": base_sha,
+                },
+            )
+            if r.status_code not in (201, 422):  # 422 = branch already exists
+                r.raise_for_status()
+
+            # 3. Commit the hotfix patch into a file on the new branch
+            import base64
+            content_b64 = base64.b64encode(patch.encode("utf-8")).decode("utf-8")
+            commit = await client.put(
+                f"{_GH_API}/repos/{repo}/contents/{target_file_path}",
+                headers=headers,
+                json={
+                    "message": f"SentinelSRE hotfix: {title}",
+                    "content": content_b64,
+                    "branch": branch_name,
+                },
+            )
+            if commit.status_code not in (200, 201, 422):  # 422 = file exists
+                commit.raise_for_status()
+
+            # 4. Open a draft PR
+            pr = await client.post(
+                f"{_GH_API}/repos/{repo}/pulls",
+                headers=headers,
+                json={
+                    "title": title,
+                    "head": branch_name,
+                    "base": default_branch,
+                    "draft": True,
+                    "body": f"Automated hotfix from SentinelSRE.\n\n```diff\n{patch}\n```",
+                },
+            )
+            if pr.status_code < 300:
+                data = pr.json()
+                return data.get("html_url", f"https://github.com/{repo}/pull/draft")
+            pr.raise_for_status()
+    except Exception as exc:
+        print(f"[mcp] GitHub PR creation failed: {exc}")
 
     return f"https://github.com/{repo}/pull/draft"
 

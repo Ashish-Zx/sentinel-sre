@@ -117,7 +117,8 @@ async def stream_incident(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
 
     async def event_generator():
-        async for chunk in stream_investigation(incident_id, db):
+        context = incident.raw_error_trace or incident.error_summary or incident.title
+        async for chunk in stream_investigation(incident_id, db, context):
             yield chunk
         # Persist the pending-HITL state after the stream completes
         incident.status = IncidentStatus.awaiting_approval

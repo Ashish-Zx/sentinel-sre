@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # --- LLM providers (empty for now) ---
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    inception_api_key: str = ""
+    inception_base_url: str = "https://api.inceptionlabs.ai/v1"
+    llm_model: str = "mercury-3"
+    llm_temperature: float = 0.75
 
     # --- Storage (R2/S3, empty for now) ---
     r2_account_id: str = ""

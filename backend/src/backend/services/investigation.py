@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.enums import AgentName, IncidentStatus
 from backend.models.llm_trace import LlmTrace
+from backend.services.llm import run_agent
 
 # Model routing (mimics the cost-aware router)
-FAST_MODEL = "claude-3-5-haiku"
-REASONING_MODEL = "claude-3-7-sonnet"
+FAST_MODEL = "mercury-3"
+REASONING_MODEL = "mercury-3"
 
 AGENT_STEPS: list[dict] = [
     {
@@ -127,10 +128,22 @@ async def _record_trace(
     await db.commit()
 
 
+async def _maybe_llm_summary(agent: AgentName, context: str, fallback: str) -> str:
+    """Use the LLM to summarize an agent's findings when configured, else fallback."""
+    try:
+        return (await run_agent(agent, context)).strip() or fallback
+    except Exception:
+        return fallback
+
+
 async def stream_investigation(
-    incident_id: UUID, db: AsyncSession
+    incident_id: UUID, db: AsyncSession, context: str = ""
 ) -> AsyncGenerator[str, None]:
-    """Stream a simulated multi-agent investigation as SSE events."""
+    """Stream a multi-agent investigation as SSE events.
+
+    When INCEPTION_API_KEY is configured, agent summaries are generated with
+    the mercury-3 model; otherwise deterministic fallback content is used.
+    """
     # 1. Router
     yield _event(
         {
@@ -142,6 +155,9 @@ async def stream_investigation(
     await asyncio.sleep(0.2)
     step = AGENT_STEPS[0]
     await _record_trace(db, incident_id, step, AgentName.router)
+    router_summary = await _maybe_llm_summary(
+        AgentName.router, context, step["summary"]
+    )
     yield _event(
         {
             "type": "agent_completed",
@@ -149,7 +165,7 @@ async def stream_investigation(
             "model_used": step["model"],
             "latency_ms": step["latency_ms"],
             "cost_usd": step["cost_usd"],
-            "summary": step["summary"],
+            "summary": router_summary,
         }
     )
 
@@ -167,6 +183,7 @@ async def stream_investigation(
     for agent_enum, name in parallel:
         s = next(x for x in AGENT_STEPS if x["agent_name"] == name)
         await _record_trace(db, incident_id, s, agent_enum)
+        llm_summary = await _maybe_llm_summary(agent_enum, context, s["summary"])
         yield _event(
             {
                 "type": "agent_completed",
@@ -174,7 +191,7 @@ async def stream_investigation(
                 "model_used": s["model"],
                 "latency_ms": s["latency_ms"],
                 "cost_usd": s["cost_usd"],
-                "summary": s["summary"],
+                "summary": llm_summary,
             }
         )
 
@@ -183,6 +200,14 @@ async def stream_investigation(
     await asyncio.sleep(0.2)
     synth = AGENT_STEPS[5]
     await _record_trace(db, incident_id, synth, AgentName.synthesizer)
+    report = ROOT_CAUSE_REPORT
+    patch = PROPOSED_PATCH_DIFF
+    try:
+        draft = (await run_agent(AgentName.synthesizer, context)).strip()
+        if draft:
+            report = draft
+    except Exception:
+        pass
     yield _event(
         {
             "type": "agent_completed",
@@ -191,8 +216,8 @@ async def stream_investigation(
             "latency_ms": synth["latency_ms"],
             "cost_usd": synth["cost_usd"],
             "summary": synth["summary"],
-            "root_cause_report": ROOT_CAUSE_REPORT,
-            "proposed_patch_diff": PROPOSED_PATCH_DIFF,
+            "root_cause_report": report,
+            "proposed_patch_diff": patch,
             "target_file_path": "api/checkout.py",
         }
     )
@@ -221,8 +246,8 @@ async def stream_investigation(
             "status": IncidentStatus.awaiting_approval.value,
             "confidence_score": 94,
             "escalation_reason": ESCALATION_REASON,
-            "root_cause_report": ROOT_CAUSE_REPORT,
-            "proposed_patch_diff": PROPOSED_PATCH_DIFF,
+            "root_cause_report": report,
+            "proposed_patch_diff": patch,
             "target_file_path": "api/checkout.py",
         }
     )

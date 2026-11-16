@@ -27,30 +27,30 @@ function StatusBadge({ status }: { status: IncidentStatus }) {
   switch (status) {
     case "awaiting_approval":
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+        <span className="badge badge-warn">
           <AlertTriangle className="h-3 w-3" />
           Awaiting HITL Approval
         </span>
       );
     case "resolved":
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+        <span className="badge badge-live">
           <CheckCircle2 className="h-3 w-3" />
-          Resolved (Draft PR Open)
+          Resolved · Draft PR Open
         </span>
       );
     case "rejected":
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 border border-red-500/40 px-2.5 py-0.5 text-xs font-medium text-red-300">
+        <span className="badge badge-danger">
           <XCircle className="h-3 w-3" />
           Rejected by Engineer
         </span>
       );
     default:
       return (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 border border-sky-500/40 px-2.5 py-0.5 text-xs font-medium text-sky-300">
+        <span className="badge badge-info">
           <Clock className="h-3 w-3 animate-spin" />
-          Investigating...
+          Investigating…
         </span>
       );
   }
@@ -63,7 +63,6 @@ export default function DashboardIncidentsPage() {
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
 
-  // New Incident Form State (Matches Section 8 Runtime Error Ingestion Strategy)
   const [title, setTitle] = useState(
     "500 KeyError: 'discount_code' on POST /api/checkout"
   );
@@ -130,15 +129,13 @@ export default function DashboardIncidentsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6 space-y-6">
-      {/* Top Action Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-zinc-800 pb-5">
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
+      {/* Page header */}
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Production Incidents
-          </h1>
-          <p className="mt-1 text-xs text-zinc-400">
-            Paste a runtime stack trace from Sentry/Railway/Vercel or trigger the 1-Click Sample Crash to launch the parallel multi-agent War Room.
+          <h1 className="page-title">Production Incidents</h1>
+          <p className="page-sub max-w-xl">
+            Paste a runtime stack trace or simulate a production crash to launch a multi-agent investigation.
           </p>
         </div>
 
@@ -146,7 +143,7 @@ export default function DashboardIncidentsPage() {
           <button
             type="button"
             onClick={handleSimulateDemoCrash}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-zinc-950 shadow-md shadow-emerald-500/15 transition hover:bg-emerald-400 cursor-pointer"
+            className="btn btn-primary h-9 px-4 text-xs"
           >
             <Zap className="h-4 w-4" />
             Simulate Production Crash (Demo)
@@ -155,84 +152,81 @@ export default function DashboardIncidentsPage() {
           <button
             type="button"
             onClick={() => setShowNewModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-medium text-zinc-100 transition hover:bg-zinc-800 cursor-pointer"
+            className="btn btn-secondary h-9 px-4 text-xs"
           >
-            <Plus className="h-4 w-4 text-emerald-400" />
-            New Incident (Paste Stack Trace / Upload Log)
+            <Plus className="h-4 w-4 text-signal" />
+            New Incident
           </button>
         </div>
       </div>
 
-      {/* Incidents Table */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+      {/* Incidents table */}
+      <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-zinc-800 text-[11px] font-mono uppercase tracking-wider text-zinc-400 bg-zinc-900/70">
-                <th className="py-3.5 px-4">Incident & Error Summary</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4">L4 Confidence</th>
-                <th className="py-3.5 px-4">Routed Cost / Latency</th>
-                <th className="py-3.5 px-4 text-right">Action</th>
+              <tr className="border-b border-edge text-[11px] font-medium uppercase tracking-wider text-ink-3">
+                <th className="px-5 py-3.5">Incident &amp; Error Summary</th>
+                <th className="px-5 py-3.5">Status</th>
+                <th className="px-5 py-3.5">L4 Confidence</th>
+                <th className="px-5 py-3.5">Routed Cost / Latency</th>
+                <th className="px-5 py-3.5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/70 text-xs">
+            <tbody className="divide-y divide-edge text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-10 text-center text-zinc-400">
-                    Loading workspace incidents...
+                  <td colSpan={5} className="px-5 py-12 text-center text-xs text-ink-3">
+                    Loading workspace incidents…
                   </td>
                 </tr>
               ) : (
                 incidents.map((inc) => (
-                  <tr
-                    key={inc.id}
-                    className="transition-colors hover:bg-zinc-900/80"
-                  >
-                    <td className="py-4 px-4">
+                  <tr key={inc.id} className="transition-colors hover:bg-surface-2">
+                    <td className="px-5 py-4">
                       <Link
                         href={`/dashboard/incidents/${inc.id}`}
-                        className="font-semibold text-zinc-100 hover:text-emerald-400 flex items-center gap-1.5"
+                        className="group flex items-center gap-1.5 font-medium text-ink hover:text-signal"
                       >
                         {inc.title}
-                        <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
+                        <ArrowUpRight className="h-3.5 w-3.5 text-ink-3 transition-colors group-hover:text-signal" />
                       </Link>
-                      <div className="mt-1 text-[11px] text-zinc-400 font-mono">
-                        Target: {inc.target_file_path ?? "api/checkout.py"} • Commit:{" "}
+                      <div className="mt-1 font-mono text-[11px] text-ink-3">
+                        Target: {inc.target_file_path ?? "api/checkout.py"} · Commit:{" "}
                         {inc.deployed_commit_sha ?? "9f3a1c2"}
                       </div>
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="px-5 py-4">
                       <StatusBadge status={inc.status} />
                     </td>
-                    <td className="py-4 px-4">
+                    <td className="px-5 py-4">
                       {inc.confidence_score != null ? (
-                        <span className="font-mono font-semibold text-emerald-400">
+                        <span className="tabular font-semibold text-signal">
                           {inc.confidence_score}%
                         </span>
                       ) : (
-                        <span className="text-zinc-500">—</span>
+                        <span className="text-ink-3">—</span>
                       )}
                     </td>
-                    <td className="py-4 px-4 font-mono text-zinc-300">
-                      ${(inc.total_cost_usd ?? 0.0242).toFixed(4)} •{" "}
+                    <td className="tabular px-5 py-4 font-mono text-xs text-ink-2">
+                      ${(inc.total_cost_usd ?? 0.0242).toFixed(4)} ·{" "}
                       {((inc.total_latency_ms ?? 9840) / 1000).toFixed(1)}s
                     </td>
-                    <td className="py-4 px-4 text-right">
+                    <td className="px-5 py-4 text-right">
                       <div className="inline-flex items-center gap-2">
                         {inc.github_pr_url && (
                           <a
                             href={inc.github_pr_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:text-white"
+                            className="btn btn-ghost h-8 px-2.5 text-[11px]"
                           >
                             PR <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
                         <Link
                           href={`/dashboard/incidents/${inc.id}`}
-                          className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/25"
+                          className="btn h-8 border border-signal-edge bg-signal-dim px-3 text-xs font-medium text-signal hover:bg-signal-dim/80"
                         >
                           Open War Room
                         </Link>
@@ -246,95 +240,89 @@ export default function DashboardIncidentsPage() {
         </div>
       </div>
 
-      {/* New Incident Modal */}
+      {/* New Incident modal */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="panel w-full max-w-2xl bg-surface-1 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-edge pb-4">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-emerald-400" />
-                <h2 className="text-base font-semibold text-white">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-signal-edge bg-signal-dim text-signal">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <h2 className="text-base font-semibold text-ink">
                   Investigate Runtime Production Error
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowNewModal(false)}
-                className="text-xs text-zinc-400 hover:text-white cursor-pointer"
+                className="text-xs text-ink-3 hover:text-ink cursor-pointer"
               >
                 Close ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateIncident} className="mt-4 space-y-4">
+            <form onSubmit={handleCreateIncident} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  Incident Title / Failing Endpoint
-                </label>
+                <label className="field-label">Incident Title / Failing Endpoint</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  className="input"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    GitHub Repository URL
-                  </label>
+                  <label className="field-label">GitHub Repository URL</label>
                   <input
                     type="url"
                     required
                     value={githubRepoUrl}
                     onChange={(e) => setGithubRepoUrl(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="input font-mono text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Deployed Commit SHA
-                  </label>
+                  <label className="field-label">Deployed Commit SHA</label>
                   <input
                     type="text"
                     value={commitSha}
                     onChange={(e) => setCommitSha(e.target.value)}
                     placeholder="e.g. 9f3a1c2"
-                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-emerald-500 focus:outline-none"
+                    className="input font-mono text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  Sanitized Stack Trace (From Sentry / Railway / Vercel / Docker Logs)
-                </label>
+                <label className="field-label">Stack Trace</label>
                 <textarea
                   rows={5}
                   required
                   value={rawStackTrace}
                   onChange={(e) => setRawStackTrace(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 font-mono text-xs text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                  className="input resize-none font-mono text-xs text-signal"
                 />
-                <p className="mt-1 text-[11px] text-zinc-500">
+                <p className="mt-1.5 text-[11px] text-ink-3">
                   Remove API keys, passwords, or PII before pasting.
                 </p>
               </div>
 
-              <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/50 p-3.5">
-                <label className="flex items-center justify-between cursor-pointer">
+              <div className="rounded-xl border border-dashed border-edge-strong bg-surface-1 p-3.5">
+                <label className="flex cursor-pointer items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <FileUp className="h-4 w-4 text-sky-400" />
+                    <FileUp className="h-4 w-4 text-[#075985]" />
                     <div>
-                      <span className="text-xs font-medium text-zinc-200">
-                        Optional: Attach Full <code className="font-mono">.log</code> Dump (Direct-to-R2 Presigned PUT)
+                      <span className="text-xs font-medium text-ink-2">
+                        Optional: Attach a <code className="font-mono">.log</code> dump
                       </span>
-                      <p className="text-[11px] text-zinc-500">
+                      <p className="text-[11px] text-ink-3">
                         {logFile
                           ? `Selected: ${logFile.name} (${(logFile.size / 1024).toFixed(1)} KB)`
-                          : "Bypasses FastAPI RAM via Cloudflare R2 presigned URL"}
+                          : "Uploaded directly to object storage"}
                       </p>
                     </div>
                   </div>
@@ -344,14 +332,14 @@ export default function DashboardIncidentsPage() {
                     onChange={(e) => setLogFile(e.target.files?.[0] ?? null)}
                     className="hidden"
                   />
-                  <span className="rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-[11px] text-zinc-200">
+                  <span className="btn btn-secondary h-7 px-2.5 text-[11px]">
                     Choose .log
                   </span>
                 </label>
               </div>
 
               {uploadStatus && (
-                <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 font-mono">
+                <div className="status-info rounded-lg px-3 py-2 font-mono text-xs">
                   {uploadStatus}
                 </div>
               )}
@@ -360,17 +348,17 @@ export default function DashboardIncidentsPage() {
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
-                  className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-400 hover:text-white cursor-pointer"
+                  className="btn btn-ghost h-9 px-4 text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
+                  className="btn btn-primary h-9 px-4 text-xs"
                 >
                   <Zap className="h-3.5 w-3.5" />
-                  {submitting ? "Launching Agents..." : "Start Parallel Investigation"}
+                  {submitting ? "Launching Agents…" : "Start Parallel Investigation"}
                 </button>
               </div>
             </form>

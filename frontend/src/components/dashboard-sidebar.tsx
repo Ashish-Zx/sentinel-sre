@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Activity,
-  BookOpen,
-  DollarSign,
-  PlayCircle,
-  ShieldCheck,
-} from "lucide-react";
+import { Activity, BookOpen, DollarSign, PlayCircle, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -21,11 +15,12 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex w-64 flex-col justify-between border-r border-zinc-800/80 bg-zinc-950 p-4">
+    <aside className="hidden w-64 flex-col justify-between border-r border-edge bg-surface-1/60 p-4 lg:flex">
       <div className="space-y-1">
-        <div className="px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-zinc-500">
+        <div className="px-3 pb-2 text-[11px] font-medium uppercase tracking-wider text-ink-3">
           Workspace Operations
         </div>
+
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -33,28 +28,29 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
-                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                  ? "border border-signal-edge bg-signal-dim text-signal"
+                  : "text-ink-2 hover:bg-surface-3 hover:text-ink"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={`h-4 w-4 ${isActive ? "text-signal" : "text-ink-3 group-hover:text-ink-2"}`} />
               {item.label}
             </Link>
           );
         })}
       </div>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3.5 space-y-2">
-        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
+      <div className="space-y-2.5 rounded-xl border border-edge bg-surface-2 p-3.5">
+        <div className="flex items-center gap-2 text-xs font-semibold text-ink">
+          <ShieldCheck className="h-4 w-4 text-signal" />
           Procedural Safety Gate
         </div>
-        <p className="text-[11px] text-zinc-400 leading-relaxed">
-          Confidence threshold: <strong className="text-zinc-200">85%</strong>
+        <p className="text-[11px] leading-relaxed text-ink-3">
+          Confidence threshold: <span className="text-ink tabular">85%</span>
           <br />
-          Protected: <code className="text-amber-300">/auth, /payments, checkout.py</code>
+          Protected:{" "}
+          <span className="font-mono text-[#7a4d00]">/auth, /payments, checkout.py</span>
         </p>
       </div>
     </aside>

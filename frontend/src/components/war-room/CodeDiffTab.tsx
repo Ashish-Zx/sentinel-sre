@@ -21,8 +21,8 @@ export default function CodeDiffTab({
 
   if (!patchDiff) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-12 text-center font-mono text-xs text-zinc-500">
-        Generating Unified Git Diff patch...
+      <div className="panel p-12 text-center font-mono text-xs text-ink-3">
+        Generating Unified Git Diff patch…
       </div>
     );
   }
@@ -30,24 +30,18 @@ export default function CodeDiffTab({
   const lines = patchDiff.split("\n");
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 overflow-hidden">
-      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/80 px-4 py-2.5">
-        <div className="flex items-center gap-2 font-mono text-xs text-zinc-200">
-          <FileCode2 className="h-4 w-4 text-emerald-400" />
+    <div className="panel overflow-hidden bg-surface-1">
+      <div className="flex items-center justify-between border-b border-edge bg-surface-2/80 px-4 py-2.5">
+        <div className="flex items-center gap-2 font-mono text-xs text-ink-2">
+          <FileCode2 className="h-4 w-4 text-signal" />
           {targetFilePath ?? "api/checkout.py"}
-          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300 border border-emerald-500/30">
-            AST Syntax Validated
-          </span>
+          <span className="badge badge-live text-[10px]">AST Syntax Validated</span>
         </div>
 
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white cursor-pointer"
-        >
+        <button type="button" onClick={handleCopy} className="btn btn-secondary h-8 px-2.5 text-[11px]">
           {copied ? (
             <>
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
+              <Check className="h-3.5 w-3.5 text-signal" />
               Copied Diff
             </>
           ) : (
@@ -68,14 +62,14 @@ export default function CodeDiffTab({
           return (
             <div
               key={`${index}-${line.slice(0, 12)}`}
-              className={`px-3 py-0.5 rounded-sm whitespace-pre ${
+              className={`whitespace-pre rounded-sm px-3 py-0.5 ${
                 isAdd
-                  ? "bg-emerald-500/15 text-emerald-300 border-l-2 border-emerald-400"
+                  ? "border-l-2 border-signal bg-signal-dim/60 text-signal"
                   : isRemove
-                    ? "bg-red-500/15 text-red-300 border-l-2 border-red-400"
+                    ? "border-l-2 border-[#e4a29b] bg-[#fff1ef] text-[#a32116]"
                     : isHeader
-                      ? "bg-sky-500/10 text-sky-300 font-semibold my-1"
-                      : "text-zinc-300"
+                      ? "my-1 bg-[#eef8fd] font-semibold text-[#075985]"
+                      : "text-ink-2"
               }`}
             >
               {line}

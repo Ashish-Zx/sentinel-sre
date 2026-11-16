@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  GitPullRequest,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, GitPullRequest, XCircle } from "lucide-react";
 import { useState } from "react";
 import type { Incident } from "@/lib/types";
 
@@ -45,15 +39,15 @@ export default function HitlActionBar({
 
   if (incident.status === "resolved") {
     return (
-      <div className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-4 border-t border-emerald-500/40 bg-emerald-950/90 px-6 py-4 backdrop-blur">
+      <div className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-4 border-t border-signal-edge bg-[#07130e]/95 px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-signal" />
           <div>
-            <div className="text-xs font-semibold text-white">
-              Approved & Executed via GitHub MCP + Slack MCP
+            <div className="text-xs font-semibold text-ink">
+              Approved &amp; Executed via GitHub MCP + Slack MCP
             </div>
-            <div className="text-[11px] text-emerald-200/80">
-              Draft Pull Request opened and outcome saved to Episodic Memory (`incidents` SQL table).
+            <div className="text-[11px] text-ink-2">
+              Draft Pull Request opened and outcome saved to Episodic Memory (incidents SQL table).
             </div>
           </div>
         </div>
@@ -63,7 +57,7 @@ export default function HitlActionBar({
             href={incident.github_pr_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-300"
+            className="btn btn-primary h-10 px-4 text-xs"
           >
             <GitPullRequest className="h-4 w-4" />
             View Hotfix Draft PR on GitHub
@@ -76,15 +70,15 @@ export default function HitlActionBar({
 
   if (incident.status === "rejected") {
     return (
-      <div className="sticky bottom-0 z-30 flex items-center justify-between border-t border-red-500/40 bg-red-950/90 px-6 py-4 backdrop-blur">
+      <div className="sticky bottom-0 z-30 flex items-center justify-between border-t border-[#e4a29b] bg-[#fff8f7] px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <XCircle className="h-5 w-5 text-red-400 shrink-0" />
+          <XCircle className="h-5 w-5 shrink-0 text-[#a32116]" />
           <div>
-            <div className="text-xs font-semibold text-white">
+            <div className="text-xs font-semibold text-ink">
               Patch Rejected — Logged to Episodic Memory
             </div>
-            <div className="text-[11px] text-red-200/80">
-              Engineer Feedback: {incident.human_feedback || "Rejected during review"}
+            <div className="text-[11px] text-ink-2">
+              Engineer feedback: {incident.human_feedback || "Rejected during review"}
             </div>
           </div>
         </div>
@@ -94,51 +88,53 @@ export default function HitlActionBar({
 
   return (
     <>
-      <div className="sticky bottom-0 z-30 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-amber-500/40 bg-amber-950/85 px-6 py-3.5 backdrop-blur">
+      <div className="sticky bottom-0 z-30 flex flex-col gap-3 border-t border-[#dfb55a] bg-[#fffdf5] px-6 py-3.5 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#7a4d00]" />
           <div>
-            <div className="text-xs font-semibold text-amber-100">
-              Escalation Gate Triggered: Touches Payment/Checkout Route (Confidence:{" "}
+            <div className="text-xs font-semibold text-[#7a4d00]">
+              Escalation Gate Triggered: touches payment/checkout route (Confidence:{" "}
               {incident.confidence_score ?? 94}%)
             </div>
-            <div className="text-[11px] text-amber-200/80">
-              LangGraph execution paused via <code className="font-mono">interrupt()</code> in PostgresSaver. Review the diff before authorizing MCP tool execution.
+            <div className="text-[11px] text-ink-2">
+              LangGraph execution paused via <code className="font-mono">interrupt()</code> in
+              PostgresSaver. Review the diff before authorizing MCP tool execution.
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
             disabled={busy}
             onClick={() => setShowRejectModal(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/15 px-3.5 py-2 text-xs font-medium text-red-200 hover:bg-red-500/25 disabled:opacity-50 cursor-pointer"
+            className="btn status-danger h-9 px-3.5 text-xs font-medium hover:bg-[#ffe4e0]"
           >
             <XCircle className="h-4 w-4" />
-            Reject & Give Feedback
+            Reject &amp; Give Feedback
           </button>
 
           <button
             type="button"
             disabled={busy}
             onClick={handleApproveClick}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 disabled:opacity-50 cursor-pointer"
+            className="btn btn-primary h-9 px-4 text-xs"
           >
             <GitPullRequest className="h-4 w-4" />
-            {busy ? "Executing MCP Tools..." : "Approve & Open Hotfix Draft PR"}
+            {busy ? "Executing MCP Tools…" : "Approve & Open Hotfix Draft PR"}
           </button>
         </div>
       </div>
 
       {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <form onSubmit={handleRejectSubmit} className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
-            <h3 className="text-sm font-semibold text-white">
-              Reject Proposed Patch & Record Episodic Memory
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <form onSubmit={handleRejectSubmit} className="panel w-full max-w-md bg-surface-1 p-6">
+            <h3 className="text-sm font-semibold text-ink">
+              Reject Proposed Patch &amp; Record Episodic Memory
             </h3>
-            <p className="text-xs text-zinc-400">
-              Your feedback is saved into the <code className="font-mono">incidents</code> table so Agent C remembers why this fix was rejected in future investigations.
+            <p className="mt-1 text-xs text-ink-3">
+              Your feedback is saved into the <code className="font-mono">incidents</code> table so
+              Agent C remembers why this fix was rejected in future investigations.
             </p>
             <textarea
               required
@@ -146,20 +142,20 @@ export default function HitlActionBar({
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               placeholder="e.g. Don't fallback to discount_code here; raise 422 with deprecation header instead."
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-3 text-xs text-white focus:border-red-500 focus:outline-none"
+              className="input mt-4 resize-none focus:border-[#e4a29b] focus:shadow-[0_0_0_3px_#fff1ef]"
             />
-            <div className="flex justify-end gap-2">
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowRejectModal(false)}
-                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400"
+                className="btn btn-ghost h-9 px-3 text-xs"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-lg bg-red-500 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-red-400"
+                className="btn h-9 bg-[#b42318] px-3.5 text-xs font-semibold text-white hover:bg-[#921b12]"
               >
                 Confirm Rejection
               </button>

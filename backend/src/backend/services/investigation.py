@@ -6,8 +6,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.enums import AgentName, IncidentStatus
+from backend.models.incident import Incident
 from backend.models.llm_trace import LlmTrace
-from backend.services.llm import run_agent
+from backend.services.llm import run_agent, verify_patch
 
 # Model routing (mimics the cost-aware router)
 FAST_MODEL = "mercury-3"
@@ -222,11 +223,16 @@ async def stream_investigation(
         }
     )
 
-    # 4. Verifier
+    # 4. Verifier (L4 fresh-context: real LLM assessment when configured)
     yield _event({"type": "agent_started", "agent_name": "verifier"})
     await asyncio.sleep(0.2)
     ver = AGENT_STEPS[6]
     await _record_trace(db, incident_id, ver, AgentName.verifier)
+
+    verifier = await verify_patch(context, patch)
+    confidence = verifier["confidence"]
+    critique = verifier["critique"]
+
     yield _event(
         {
             "type": "verifier_result",
@@ -234,17 +240,27 @@ async def stream_investigation(
             "model_used": ver["model"],
             "latency_ms": ver["latency_ms"],
             "cost_usd": ver["cost_usd"],
-            "confidence_score": 94,
-            "verifier_critique": VERIFIER_CRITIQUE,
+            "confidence_score": confidence,
+            "verifier_critique": critique,
         }
     )
 
-    # 5. HITL gate: pause for human approval
+    # 5. HITL gate: persist findings + pause for human approval
+    incident = await db.get(Incident, incident_id)
+    if incident is not None:
+        incident.root_cause_report = report
+        incident.proposed_patch_diff = patch
+        incident.target_file_path = "api/checkout.py"
+        incident.confidence_score = confidence
+        incident.verifier_critique = critique
+        incident.status = IncidentStatus.awaiting_approval
+        await db.commit()
+
     yield _event(
         {
             "type": "hitl_paused",
             "status": IncidentStatus.awaiting_approval.value,
-            "confidence_score": 94,
+            "confidence_score": confidence,
             "escalation_reason": ESCALATION_REASON,
             "root_cause_report": report,
             "proposed_patch_diff": patch,

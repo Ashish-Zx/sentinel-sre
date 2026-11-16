@@ -61,13 +61,16 @@ export default function KnowledgeAndRulesVaultPage() {
           if (stage === "ingesting")
             setUploadStage("3/3 Triggering pgvector Semantic Memory chunking...");
           if (stage === "done")
-            setUploadStage(`✅ Uploaded to R2 (${key}) & indexed!`);
+            setUploadStage("✅ Uploaded to R2 & indexed!");
         }
       );
 
       if (fileRecord) {
         setFiles((prev) => [fileRecord, ...prev]);
       }
+
+      // Show resulting R2 key after the flow completes
+      setUploadStage(`✅ Uploaded to R2 (${key}) & indexed!`);
     } catch (err) {
       setUploadError(
         err instanceof Error ? err.message : "Presigned upload failed"

@@ -3,7 +3,10 @@ import json
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
-from backend.models.enums import IncidentStatus
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models.enums import AgentName, IncidentStatus
+from backend.models.llm_trace import LlmTrace
 
 # Model routing (mimics the cost-aware router)
 FAST_MODEL = "claude-3-5-haiku"
@@ -107,7 +110,26 @@ def _event(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-async def stream_investigation(incident_id: UUID) -> AsyncGenerator[str, None]:
+async def _record_trace(
+    db: AsyncSession, incident_id: UUID, step: dict, agent_name: AgentName
+) -> None:
+    db.add(
+        LlmTrace(
+            incident_id=incident_id,
+            agent_name=agent_name,
+            model_used=step["model"],
+            prompt_tokens=step.get("prompt_tokens", 1000),
+            completion_tokens=step.get("completion_tokens", 200),
+            cost_usd=step["cost_usd"],
+            latency_ms=step["latency_ms"],
+        )
+    )
+    await db.commit()
+
+
+async def stream_investigation(
+    incident_id: UUID, db: AsyncSession
+) -> AsyncGenerator[str, None]:
     """Stream a simulated multi-agent investigation as SSE events."""
     # 1. Router
     yield _event(
@@ -119,6 +141,7 @@ async def stream_investigation(incident_id: UUID) -> AsyncGenerator[str, None]:
     )
     await asyncio.sleep(0.2)
     step = AGENT_STEPS[0]
+    await _record_trace(db, incident_id, step, AgentName.router)
     yield _event(
         {
             "type": "agent_completed",
@@ -131,13 +154,19 @@ async def stream_investigation(incident_id: UUID) -> AsyncGenerator[str, None]:
     )
 
     # 2. Four parallel specialists
-    parallel = ["log_agent", "git_agent", "runbook_agent", "security_agent"]
-    for name in parallel:
+    parallel = [
+        (AgentName.log_agent, "log_agent"),
+        (AgentName.git_agent, "git_agent"),
+        (AgentName.runbook_agent, "runbook_agent"),
+        (AgentName.security_agent, "security_agent"),
+    ]
+    for _, name in parallel:
         yield _event({"type": "agent_started", "agent_name": name})
 
     await asyncio.sleep(0.2)
-    for name in parallel:
+    for agent_enum, name in parallel:
         s = next(x for x in AGENT_STEPS if x["agent_name"] == name)
+        await _record_trace(db, incident_id, s, agent_enum)
         yield _event(
             {
                 "type": "agent_completed",
@@ -153,6 +182,7 @@ async def stream_investigation(incident_id: UUID) -> AsyncGenerator[str, None]:
     yield _event({"type": "agent_started", "agent_name": "synthesizer"})
     await asyncio.sleep(0.2)
     synth = AGENT_STEPS[5]
+    await _record_trace(db, incident_id, synth, AgentName.synthesizer)
     yield _event(
         {
             "type": "agent_completed",
@@ -171,6 +201,7 @@ async def stream_investigation(incident_id: UUID) -> AsyncGenerator[str, None]:
     yield _event({"type": "agent_started", "agent_name": "verifier"})
     await asyncio.sleep(0.2)
     ver = AGENT_STEPS[6]
+    await _record_trace(db, incident_id, ver, AgentName.verifier)
     yield _event(
         {
             "type": "verifier_result",

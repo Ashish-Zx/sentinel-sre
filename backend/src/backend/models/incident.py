@@ -41,3 +41,4 @@ class Incident(Base):
     )
 
     workspace: Mapped["Workspace"] = relationship(back_populates="incidents")  # type: ignore[name-defined]
+    traces: Mapped[list["LlmTrace"]] = relationship(back_populates="incident")  # type: ignore[name-defined]

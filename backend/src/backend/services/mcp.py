@@ -23,6 +23,25 @@ def _slugify(value: str, max_len: int = 40) -> str:
     return slug[:max_len].rstrip("-") or "hotfix"
 
 
+def _normalize_repo(repo: str) -> str:
+    """Normalize a repo reference to ``owner/repo`` form.
+
+    Accepts either ``owner/repo`` or a full URL like
+    ``https://github.com/owner/repo`` (with optional ``.git``).
+    """
+    repo = repo.strip()
+    repo = repo.rstrip("/")
+    if repo.endswith(".git"):
+        repo = repo[: -len(".git")]
+    if "://" in repo:
+        repo = repo.split("://", 1)[1]
+    if "/" in repo:
+        # Strip any leading host path segments (e.g. "github.com/owner/repo")
+        parts = [p for p in repo.split("/") if p]
+        repo = "/".join(parts[-2:])
+    return repo.strip("/")
+
+
 async def _gh_get(client, headers, url: str) -> dict:
     r = await client.get(url, headers=headers)
     r.raise_for_status()
@@ -42,7 +61,7 @@ async def create_draft_pr(
     fails, so the rest of the system keeps working in dev.
     """
     settings = get_settings()
-    repo = repo or settings.github_default_repo or "acme-corp/ecommerce-checkout-api"
+    repo = _normalize_repo(repo or settings.github_default_repo or "acme-corp/ecommerce-checkout-api")
 
     if not settings.github_access_token:
         return f"https://github.com/{repo}/pull/draft"

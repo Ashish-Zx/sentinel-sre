@@ -78,6 +78,20 @@ async def incidents(
     return list(result.scalars().all())
 
 
+@router.get("/incidents/{incident_id}", response_model=IncidentOut)
+async def get_incident(
+    incident_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> Incident:
+    """Fetch a single incident (auth-scoped to the user's workspace)."""
+    workspace = await get_or_create_workspace(db, user.clerk_user_id)
+    incident = await db.get(Incident, incident_id)
+    if incident is None or incident.workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    return incident
+
+
 @router.post("/incidents/start", response_model=StartIncidentResponse)
 async def start_incident(
     body: StartIncidentRequest,

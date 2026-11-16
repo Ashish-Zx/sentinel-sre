@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from backend.core.security import CurrentUser, get_current_user
 from backend.db.session import get_db
 from backend.models.enums import IncidentStatus
 from backend.models.incident import Incident
+from backend.services.investigation import stream_investigation
 from backend.services.workspaces import get_or_create_workspace
 
 router = APIRouter(tags=["incidents"])
@@ -99,6 +101,36 @@ async def start_incident(
 
     return StartIncidentResponse(
         incident_id=incident.id, status=incident.status
+    )
+
+
+@router.get("/incidents/{incident_id}/stream")
+async def stream_incident(
+    incident_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> StreamingResponse:
+    """SSE stream of the multi-agent investigation for an incident."""
+    workspace = await get_or_create_workspace(db, user.clerk_user_id)
+    incident = await db.get(Incident, incident_id)
+    if incident is None or incident.workspace_id != workspace.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    async def event_generator():
+        async for chunk in stream_investigation(incident_id):
+            yield chunk
+        # Persist the pending-HITL state after the stream completes
+        incident.status = IncidentStatus.awaiting_approval
+        await db.commit()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

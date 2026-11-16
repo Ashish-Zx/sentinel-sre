@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     llm_model: str = "mercury-3"
     llm_temperature: float = 0.75
 
+    # --- MCP integrations (GitHub / Slack, empty until used) ---
+    github_access_token: str = ""
+    github_default_repo: str = ""
+    slack_webhook_url: str = ""
+
     # --- Storage (R2/S3, empty for now) ---
     r2_account_id: str = ""
     r2_access_key_id: str = ""

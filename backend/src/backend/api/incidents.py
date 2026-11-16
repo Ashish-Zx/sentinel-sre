@@ -12,6 +12,7 @@ from backend.db.session import get_db
 from backend.models.enums import IncidentStatus
 from backend.models.incident import Incident
 from backend.services.investigation import stream_investigation
+from backend.services.mcp import create_draft_pr, send_slack_alert
 from backend.services.workspaces import get_or_create_workspace
 
 router = APIRouter(tags=["incidents"])
@@ -149,13 +150,27 @@ async def decide_incident(
 
     incident.human_feedback = body.feedback
 
-    if body.approved:
-        incident.status = IncidentStatus.resolved
-        incident.github_pr_url = (
-            f"https://github.com/{incident.github_repo_url or ''}/pull/draft"
-        )
-    else:
+    if not body.approved:
         incident.status = IncidentStatus.rejected
+        await db.commit()
+        await send_slack_alert(
+            f"🚫 SentinelSRE: hotfix for '{incident.title}' was REJECTED.\n"
+            f"Engineer feedback: {body.feedback or 'none provided'}"
+        )
+        return DecisionResponse(status=incident.status, github_pr_url=None)
 
+    # Approved: create a draft PR via GitHub MCP, then notify Slack
+    incident.status = IncidentStatus.resolved
+    pr_url = await create_draft_pr(
+        repo=incident.github_repo_url or "",
+        title=f"Hotfix: {incident.title}",
+        patch=incident.proposed_patch_diff or "",
+        target_file_path=incident.target_file_path or "",
+    )
+    incident.github_pr_url = pr_url
     await db.commit()
-    return DecisionResponse(status=incident.status, github_pr_url=incident.github_pr_url)
+    await send_slack_alert(
+        f"✅ SentinelSRE: hotfix for '{incident.title}' approved.\n"
+        f"Draft PR opened: {pr_url}"
+    )
+    return DecisionResponse(status=incident.status, github_pr_url=pr_url)

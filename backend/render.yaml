@@ -40,9 +40,9 @@ services:
       - key: GITHUB_DEFAULT_REPO
         sync: false
       - key: GITHUB_CLIENT_ID
-        sync: false        # GitHub OAuth App (per-user connections)
+        value: "Ov23liTQPVMLutRALm9T"
       - key: GITHUB_CLIENT_SECRET
-        sync: false
+        value: "c3a9d173d3b4de4faa22899b5951922c5f325c70"
       - key: GITHUB_OAUTH_CALLBACK_URL
         sync: false        # Optional; defaults to {BACKEND_URL}/api/github/callback
       - key: FRONTEND_URL
@@ -50,9 +50,9 @@ services:
       - key: ENCRYPTION_KEY
         sync: false        # Fernet key for encrypting per-user GitHub tokens
       - key: SLACK_CLIENT_ID
-        sync: false        # Slack OAuth App (per-user connections)
+        value: "12617236800228.12608261499109"
       - key: SLACK_CLIENT_SECRET
-        sync: false
+        value: "2af35c7438019e648bb77c1f1b536612"
       - key: SLACK_OAUTH_CALLBACK_URL
         sync: false        # Optional; defaults to {BACKEND_URL}/api/slack/callback
       - key: SLACK_WEBHOOK_URL

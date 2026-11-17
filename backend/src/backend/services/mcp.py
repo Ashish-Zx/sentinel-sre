@@ -63,9 +63,9 @@ def _apply_patch(original: str, patch: str) -> str | None:
     return "\n".join(content)
 
 
-def _fetch_file(client, headers, repo: str, path: str, branch: str) -> tuple[str, str] | None:
+async def _fetch_file(client, headers, repo: str, path: str, branch: str) -> tuple[str, str] | None:
     """Return (current_content, sha) for a file on a branch."""
-    r = client.get(
+    r = await client.get(
         f"{_GH_API}/repos/{repo}/contents/{path}",
         headers=headers,
         params={"ref": branch},
@@ -112,7 +112,7 @@ async def apply_hotfix_direct(
             repo_info = await _gh_get(client, headers, f"{_GH_API}/repos/{repo}")
             target_branch = branch or repo_info.get("default_branch") or "main"
 
-            fetched = _fetch_file(client, headers, repo, target_file_path, target_branch)
+            fetched = await _fetch_file(client, headers, repo, target_file_path, target_branch)
             if fetched is None:
                 return None
             original, file_sha = fetched
@@ -227,19 +227,44 @@ async def create_draft_pr(
             if r.status_code not in (201, 422):  # 422 = branch already exists
                 r.raise_for_status()
 
-            # 3. Commit the hotfix patch into a file on the new branch
-            import base64
-            content_b64 = base64.b64encode(patch.encode("utf-8")).decode("utf-8")
+            # 3. Apply the patch to the file's current contents and commit it on
+            #    the new branch. We pass the existing blob's SHA so GitHub updates
+            #    the file instead of rejecting our write with 422 (which left the
+            #    branch empty in previous versions).
+            fetched = await _fetch_file(client, headers, repo, target_file_path, default_branch)
+            body: dict = {"branch": branch_name}
+            if fetched is not None:
+                original, original_sha = fetched
+                updated = _apply_patch(original, patch)
+                if updated is not None:
+                    body.update(
+                        {
+                            "message": f"SentinelSRE hotfix: {title}",
+                            "content": base64.b64encode(updated.encode("utf-8")).decode("utf-8"),
+                            "sha": original_sha,
+                        }
+                    )
+                else:
+                    body.update(
+                        {
+                            "message": f"SentinelSRE hotfix: {title}",
+                            "content": base64.b64encode(patch.encode("utf-8")).decode("utf-8"),
+                        }
+                    )
+            else:
+                # File does not exist on the base branch yet: create it fresh.
+                body.update(
+                    {
+                        "message": f"SentinelSRE hotfix: {title}",
+                        "content": base64.b64encode(patch.encode("utf-8")).decode("utf-8"),
+                    }
+                )
             commit = await client.put(
                 f"{_GH_API}/repos/{repo}/contents/{target_file_path}",
                 headers=headers,
-                json={
-                    "message": f"SentinelSRE hotfix: {title}",
-                    "content": content_b64,
-                    "branch": branch_name,
-                },
+                json=body,
             )
-            if commit.status_code not in (200, 201, 422):  # 422 = file exists
+            if commit.status_code not in (200, 201):  # 422 no longer acceptable
                 commit.raise_for_status()
 
             # 4. Open a draft PR

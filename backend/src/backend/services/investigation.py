@@ -150,22 +150,26 @@ async def _fetch_file_from_github(
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
     }
-    params = {"ref": ref} if ref else {}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            r = await client.get(
-                f"{_GH_API}/repos/{repo}/contents/{path}",
-                headers=headers,
-                params=params,
-            )
-            if r.status_code != 200:
+            for attempt_ref in ([ref, None] if ref else [None]):
+                r = await client.get(
+                    f"{_GH_API}/repos/{repo}/contents/{path}",
+                    headers=headers,
+                    params={"ref": attempt_ref} if attempt_ref else {},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    if data.get("content"):
+                        return base64.b64decode(data["content"]).decode("utf-8")
+                    return None
+                # Try the default branch once if this ref is unavailable.
+                if attempt_ref is not None and r.status_code in (404, 409):
+                    continue
                 return None
-            data = r.json()
-            if not data.get("content"):
-                return None
-            return base64.b64decode(data["content"]).decode("utf-8")
     except Exception:
         return None
+    return None
 
 
 async def _synthesize_patch(
@@ -217,10 +221,10 @@ def _error_class_token(error: str) -> str | None:
     return m.group(1) if m else None
 
 
-async def _locate_source_file(
-    token: str, repo: str, ref: str | None, query: str
+async def _search_code(
+    token: str, repo: str, query: str
 ) -> str | None:
-    """Find a source file in the repo mentioning ``query`` (GitHub code search)."""
+    """Try GitHub code search for a file mentioning ``query``."""
     repo = _normalize_repo(repo)
     if not repo:
         return None
@@ -240,7 +244,6 @@ async def _locate_source_file(
             items = r.json().get("items", [])
             if not items:
                 return None
-            # Prefer files with checkout/service in the path (most relevant).
             items.sort(
                 key=lambda it: (
                     0 if ("checkout" in it["path"] or "service" in it["path"]) else 1,
@@ -252,12 +255,121 @@ async def _locate_source_file(
         return None
 
 
+def _is_py_source(path: str) -> bool:
+    p = path.replace("\\", "/")
+    segs = p.split("/")
+    if any(seg in ("tests", "test", "__pycache__") for seg in segs):
+        return False
+    if segs[-1].startswith("test_"):
+        return False
+    return p.endswith(".py")
+
+
+async def _scan_tree_for_token(
+    token: str, repo: str, ref: str | None, token_name: str
+) -> str | None:
+    """Fallback: scan the repo's file tree for a source file containing a token."""
+    repo = _normalize_repo(repo)
+    if not repo:
+        return None
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            tree_ref = ref or "HEAD"
+            r = await client.get(
+                f"{_GH_API}/repos/{repo}/git/trees/{tree_ref}",
+                headers=headers,
+                params={"recursive": "1"},
+            )
+            if r.status_code != 200:
+                # Retry against the default branch.
+                ri = await client.get(f"{_GH_API}/repos/{repo}", headers=headers)
+                if ri.status_code != 200:
+                    return None
+                default = ri.json().get("default_branch", "main")
+                r = await client.get(
+                    f"{_GH_API}/repos/{repo}/git/trees/{default}",
+                    headers=headers,
+                    params={"recursive": "1"},
+                )
+                if r.status_code != 200:
+                    return None
+
+            tree = r.json().get("tree", [])
+            paths = [
+                t.get("path", "")
+                for t in tree
+                if t.get("type") == "blob" and _is_py_source(t.get("path", ""))
+            ]
+
+            def pref(p: str) -> int:
+                s = 0
+                if "checkout" in p:
+                    s -= 3
+                if "service" in p:
+                    s -= 2
+                return s
+
+            paths.sort(key=lambda p: (pref(p), p))
+
+            for path in paths[:25]:
+                rc = await client.get(
+                    f"{_GH_API}/repos/{repo}/contents/{path}",
+                    headers=headers,
+                    params={"ref": ref} if ref else {},
+                )
+                if rc.status_code != 200:
+                    continue
+                data = rc.json()
+                if not data.get("content"):
+                    continue
+                try:
+                    text = base64.b64decode(data["content"]).decode("utf-8")
+                except Exception:
+                    continue
+                if token_name in text:
+                    return path
+    except Exception:
+        return None
+    return None
+
+
+async def _locate_source_file(
+    token: str, repo: str, ref: str | None, query: str
+) -> str | None:
+    """Find a source file in the repo mentioning ``query``.
+
+    Tries GitHub code search first, then falls back to scanning the repo tree
+    (more reliable — code search can be rate-limited or return no matches).
+    """
+    located = await _search_code(token, repo, query)
+    if located:
+        return located
+    return await _scan_tree_for_token(token, repo, ref, query)
+
+
 def _scan_subscript_lines(file_content: str) -> list[tuple[int, str]]:
-    """Return (line number, line) for lines containing a `x["key"]` subscript."""
+    """Return (line number, line) for code lines containing a `x["key"]` subscript.
+
+    Skips comments and triple-quoted docstrings so documentation examples don't
+    get mistaken for real code.
+    """
     found: list[tuple[int, str]] = []
     pat = re.compile(r"[A-Za-z_]\w*\[['\"][\w]+['\"]\]")
+    in_triple = False
     for idx, line in enumerate(file_content.splitlines(), start=1):
-        if line.strip().startswith("#"):
+        q = line.count('"""') + line.count("'''")
+        if q:
+            if q % 2 == 1:
+                in_triple = not in_triple
+            continue
+        if in_triple:
+            continue
+        s = line.strip()
+        if s.startswith("#") or not s:
             continue
         if pat.search(line):
             found.append((idx, line))
@@ -480,24 +592,33 @@ async def stream_investigation(
     if file_content is not None and target_file_path:
         final_target = target_file_path
 
-        # Primary: LLM-synthesized patch, validated against the real file.
-        draft = await _synthesize_patch(
-            context, file_content, target_file_path, target_line
+        # Preferred: deterministic mini-solver (exact for common one-line
+        # regressions, e.g. subscriptable TypeError / KeyError).
+        patch = _deterministic_fix(
+            file_content, context, target_file_path, target_line
         )
-        if draft and draft.get("diff"):
-            candidate = draft["diff"]
-            if _apply_patch(file_content, candidate) is not None:
-                patch = candidate
-                if draft.get("report"):
-                    report = draft["report"]
+        if patch is not None and _apply_patch(file_content, patch) is None:
+            patch = None
 
-        # Fallback: deterministic mini-solver for common one-line regressions.
+        # Fallback: LLM-synthesized patch, validated against the real file.
         if patch is None:
-            patch = _deterministic_fix(
-                file_content, context, target_file_path, target_line
+            draft = await _synthesize_patch(
+                context, file_content, target_file_path, target_line
             )
-            if patch is not None and _apply_patch(file_content, patch) is None:
-                patch = None
+            if draft and draft.get("diff"):
+                candidate = draft["diff"]
+                # Normalize the diff headers to the located file so the patch and
+                # target always agree (LLMs occasionally write a wrong path).
+                candidate = re.sub(
+                    r"^--- a/.*$", f"--- a/{target_file_path}", candidate, flags=re.MULTILINE
+                )
+                candidate = re.sub(
+                    r"^\+\+\+ b/.*$", f"+++ b/{target_file_path}", candidate, flags=re.MULTILINE
+                )
+                if _apply_patch(file_content, candidate) is not None:
+                    patch = candidate
+                    if draft.get("report"):
+                        report = draft["report"]
 
     # Last resort only if we truly have no usable patch (keeps demo robust).
     if patch is None:

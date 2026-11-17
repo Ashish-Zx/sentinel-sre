@@ -10,6 +10,7 @@ import {
   FileUp,
   Plus,
   Sparkles,
+  Trash2,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
+  deleteIncident,
   fetchGithubCommits,
   fetchGithubRepos,
   fetchIncidents,
@@ -27,7 +29,13 @@ import type { Incident, IncidentStatus } from "@/lib/types";
 import GithubConnect from "@/components/github-connect";
 import SlackConnect from "@/components/slack-connect";
 
-function StatusBadge({ status }: { status: IncidentStatus }) {
+function StatusBadge({
+  status,
+  githubPrUrl,
+}: {
+  status: IncidentStatus;
+  githubPrUrl?: string | null;
+}) {
   switch (status) {
     case "awaiting_approval":
       return (
@@ -37,10 +45,11 @@ function StatusBadge({ status }: { status: IncidentStatus }) {
         </span>
       );
     case "resolved":
+      const isDraftPr = !!githubPrUrl && /\/pull\//.test(githubPrUrl);
       return (
         <span className="badge badge-live">
           <CheckCircle2 className="h-3 w-3" />
-          Resolved · Draft PR Open
+          {isDraftPr ? "Resolved · Draft PR Open" : "Resolved · Commit Pushed"}
         </span>
       );
     case "rejected":
@@ -65,6 +74,7 @@ export default function DashboardIncidentsPage() {
   const router = useRouter();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -134,6 +144,19 @@ export default function DashboardIncidentsPage() {
 
   async function handleSimulateDemoCrash() {
     router.push("/dashboard/incidents/demo-inc-992");
+  }
+
+  async function handleDeleteIncident(id: string) {
+    if (!window.confirm("Delete this incident permanently?")) return;
+    setDeletingId(id);
+    try {
+      await deleteIncident(id, getToken);
+      setIncidents((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete incident");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleCreateIncident(e: React.FormEvent) {
@@ -252,7 +275,7 @@ export default function DashboardIncidentsPage() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <StatusBadge status={inc.status} />
+                      <StatusBadge status={inc.status} githubPrUrl={inc.github_pr_url} />
                     </td>
                     <td className="px-5 py-4">
                       {inc.confidence_score != null ? (
@@ -276,7 +299,8 @@ export default function DashboardIncidentsPage() {
                             rel="noreferrer"
                             className="btn btn-ghost h-8 px-2.5 text-[11px]"
                           >
-                            PR <ExternalLink className="h-3 w-3" />
+                            {/\/pull\//.test(inc.github_pr_url) ? "PR" : "Commit"}{" "}
+                            <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
                         <Link
@@ -285,6 +309,16 @@ export default function DashboardIncidentsPage() {
                         >
                           Open War Room
                         </Link>
+                        <button
+                          type="button"
+                          title="Delete incident"
+                          aria-label="Delete incident"
+                          disabled={deletingId === inc.id}
+                          onClick={() => handleDeleteIncident(inc.id)}
+                          className="btn h-8 w-8 items-center justify-center p-0 text-ink-3 hover:text-[#a32116] disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>

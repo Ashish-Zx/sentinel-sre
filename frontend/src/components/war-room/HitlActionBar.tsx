@@ -16,7 +16,8 @@ export default function HitlActionBar({
   const [busy, setBusy] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [delivery, setDelivery] = useState<"draft" | "direct">("draft");
+  // Default to committing directly to the deployed branch (main).
+  const [delivery, setDelivery] = useState<"draft" | "direct">("direct");
   const [branch, setBranch] = useState("");
 
   async function handleApproveClick() {
@@ -43,6 +44,8 @@ export default function HitlActionBar({
   }
 
   if (incident.status === "resolved") {
+    const isDraftPr =
+      typeof incident.github_pr_url === "string" && /\/pull\//.test(incident.github_pr_url);
     return (
       <div className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-4 border-t border-signal-edge bg-[#07130e]/95 px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
@@ -64,8 +67,12 @@ export default function HitlActionBar({
             rel="noreferrer"
             className="btn btn-primary h-10 px-4 text-xs"
           >
-            <GitPullRequest className="h-4 w-4" />
-            View Hotfix Draft PR on GitHub
+            {isDraftPr ? (
+              <GitPullRequest className="h-4 w-4" />
+            ) : (
+              <GitBranch className="h-4 w-4" />
+            )}
+            {isDraftPr ? "View Hotfix Draft PR on GitHub" : "View Hotfix Commit on GitHub"}
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         )}

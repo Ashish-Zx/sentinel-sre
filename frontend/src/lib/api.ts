@@ -48,7 +48,9 @@ async function apiFetch<T>(
     throw new Error(errorDetail);
   }
 
-  return (await response.json()) as T;
+  const bodyText = await response.text();
+  if (!bodyText) return undefined as T;
+  return JSON.parse(bodyText) as T;
 }
 
 /**
@@ -228,6 +230,15 @@ export async function submitHitlDecision(
         : null,
     };
   }
+}
+
+export async function deleteIncident(
+  incidentId: string,
+  getToken: TokenGetter
+): Promise<void> {
+  await apiFetch<void>(`/api/incidents/${incidentId}`, getToken, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchFinOpsSummary(

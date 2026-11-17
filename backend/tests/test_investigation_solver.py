@@ -72,3 +72,17 @@ def test_deterministic_fix_without_line_ambiguous_returns_none():
     content = 'x["a"]\ny["b"]\n'
     assert _deterministic_fix(content, "TypeError: 'X' object is not subscriptable", "x.py", None) is None
 
+
+def test_scan_subscript_lines_skips_docstrings_and_comments():
+    from backend.services.investigation import _scan_subscript_lines
+
+    content = (
+        '"""Doc example: promo_info["discount_rate"] should not match."""\n'
+        "# comment: x[\"y\"]\n"
+        '        rate = promo_info["discount_rate"]\n'
+        "other = plain\n"
+    )
+    found = _scan_subscript_lines(content)
+    assert len(found) == 1
+    assert found[0][0] == 3
+

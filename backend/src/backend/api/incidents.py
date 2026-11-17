@@ -205,10 +205,18 @@ async def decide_incident(
         )
         if commit_url:
             pr_url = commit_url
+        else:
+            # Surface the failure rather than silently downgrading to a new-branch
+            # PR, so the engineer knows the direct commit did not land.
+            incident.status = IncidentStatus.awaiting_approval
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Direct commit to the target branch failed. No changes were pushed. Please review the patch and retry, or use the draft-PR delivery mode.",
+            )
 
     if pr_url is None:
-        # Fall back to a draft PR (new branch) when direct commit wasn't chosen
-        # or failed.
+        # Draft PR (new branch) delivery.
         pr_url = await create_draft_pr(
             repo=repo,
             title=f"Hotfix: {incident.title}",
@@ -226,3 +234,27 @@ async def decide_incident(
         channel=slack_channel,
     )
     return DecisionResponse(status=incident.status, github_pr_url=pr_url)
+
+
+@router.delete("/incidents/{incident_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_incident(
+    incident_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Delete an incident owned by the current user's workspace."""
+    workspace = await get_or_create_workspace(db, user.clerk_user_id)
+    result = await db.execute(
+        select(Incident).where(
+            Incident.id == incident_id,
+            Incident.workspace_id == workspace.id,
+        )
+    )
+    incident = result.scalar_one_or_none()
+    if incident is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incident not found",
+        )
+    await db.delete(incident)
+    await db.commit()

@@ -69,6 +69,53 @@ async def test_decision_approve_opens_pr(client, monkeypatch):
     assert body["github_pr_url"] == "https://github.com/acme/checkout/pull/1"
 
 
+async def test_decision_approve_direct_commit_failure_raises_502(client, monkeypatch):
+    async def fake_direct(*args, **kwargs):
+        return None
+
+    async def fake_slack(message, **kwargs):
+        return True
+
+    monkeypatch.setattr(incidents_api, "apply_hotfix_direct", fake_direct)
+    monkeypatch.setattr(incidents_api, "send_slack_alert", fake_slack)
+    monkeypatch.setattr(incidents_api, "create_draft_pr", lambda *a, **k: "unused")
+
+    created = (await client.post(
+        "/api/incidents/start", json={"title": "Direct fails"}
+    )).json()
+    incident_id = created["incident_id"]
+
+    r = await client.post(
+        f"/api/incidents/{incident_id}/decision",
+        json={"approved": True, "direct_commit": True, "target_branch": "main"},
+    )
+    assert r.status_code == 502
+    assert "No changes were pushed" in r.json()["detail"]
+
+
+async def test_delete_incident_removes_record(client):
+    created = (await client.post(
+        "/api/incidents/start", json={"title": "Delete me"}
+    )).json()
+    incident_id = created["incident_id"]
+
+    r = await client.delete(f"/api/incidents/{incident_id}")
+    assert r.status_code == 204
+
+    r2 = await client.get(f"/api/incidents/{incident_id}")
+    assert r2.status_code == 404
+
+    listing = (await client.get("/api/incidents")).json()
+    assert not any(i["id"] == incident_id for i in listing)
+
+
+async def test_delete_incident_unknown_404(client):
+    r = await client.delete(
+        "/api/incidents/00000000-0000-0000-0000-000000000000"
+    )
+    assert r.status_code == 404
+
+
 async def test_decision_unknown_incident_404(client):
     r = await client.post(
         "/api/incidents/00000000-0000-0000-0000-000000000000/decision",

@@ -5,6 +5,8 @@ from backend.models.enums import (
     IncidentStatus,
     IngestionStatus,
 )
+from backend.models.github_oauth import GithubOauthState
+from backend.models.slack_oauth import SlackOauthState
 from backend.models.incident import Incident
 from backend.models.knowledge_file import KnowledgeFile
 from backend.models.llm_trace import LlmTrace
@@ -23,4 +25,6 @@ __all__ = [
     "ProceduralRule",
     "SemanticMemoryChunk",
     "Workspace",
+    "GithubOauthState",
+    "SlackOauthState",
 ]

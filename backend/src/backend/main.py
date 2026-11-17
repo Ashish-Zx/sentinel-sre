@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.health import router as health_router
 from backend.api.auth import router as auth_router
+from backend.api.github import router as github_router
+from backend.api.slack import router as slack_router
 from backend.api.incidents import router as incidents_router
 from backend.api.storage import router as storage_router
 from backend.api.knowledge import router as knowledge_router
@@ -36,6 +38,8 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
+app.include_router(github_router, prefix="/api")
+app.include_router(slack_router, prefix="/api")
 app.include_router(incidents_router, prefix="/api")
 app.include_router(storage_router, prefix="/api")
 app.include_router(knowledge_router, prefix="/api")
@@ -47,7 +51,6 @@ _REQUIRED_PRODUCEION = {
     "clerk_jwks_url": "Clerk JWKS URL",
     "clerk_issuer": "Clerk issuer",
     "database_url": "DATABASE_URL",
-    "github_access_token": "GitHub access token",
     "slack_webhook_url": "Slack webhook URL",
     "r2_bucket": "R2 bucket",
 }
@@ -70,6 +73,11 @@ def _validate_environment() -> None:
     for attr, label in _REQUIRED_PRODUCEION.items():
         if not getattr(settings, attr, None):
             missing.append(label)
+    # GitHub access must come from either a global token OR per-user OAuth.
+    if not settings.github_access_token and not (
+        settings.github_client_id and settings.github_client_secret
+    ):
+        missing.append("a GitHub token or OAuth app (GITHUB_ACCESS_TOKEN / GITHUB_CLIENT_ID+CLIENT_SECRET)")
     if not (
         settings.inception_api_key
         or settings.openai_api_key

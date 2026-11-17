@@ -1,6 +1,10 @@
 from functools import lru_cache
 
+import base64
+from hashlib import sha256
+
 import httpx
+from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
@@ -98,3 +102,38 @@ async def get_current_user(
         first_name=payload.get("first_name"),
         last_name=payload.get("last_name"),
     )
+
+
+# --- Encrypted secret helpers (for per-user GitHub OAuth tokens) ---
+# Uses Fernet (AES-128-CBC + HMAC). In production, set ENCRYPTION_KEY;
+# a deterministic dev fallback keeps local/test flows working without it.
+
+_DEV_FALLBACK_KEY = base64.urlsafe_b64encode(
+    sha256(b"sentinel-sre-dev-fallback").digest()
+)
+
+
+def _fernet() -> Fernet:
+    raw = get_settings().encryption_key
+    if not raw:
+        if get_settings().app_env == "production":
+            raise RuntimeError(
+                "ENCRYPTION_KEY must be set in production to store per-user GitHub tokens"
+            )
+        return Fernet(_DEV_FALLBACK_KEY)
+    return Fernet(raw.encode() if isinstance(raw, str) else raw)
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """Encrypt a secret for at-rest storage (e.g. a GitHub access token)."""
+    return _fernet().encrypt(plaintext.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_secret(ciphertext: str | None) -> str | None:
+    """Decrypt a stored secret. Returns None for empty/None input."""
+    if not ciphertext:
+        return None
+    try:
+        return _fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return None

@@ -40,10 +40,35 @@ class Settings(BaseSettings):
     llm_model: str = "mercury-3"
     llm_temperature: float = 0.75
 
-    # --- MCP integrations (GitHub / Slack, empty until used) ---
+    # --- MCP integrations (GitHub / Slack) ---
+    # Global fallback token (shared identity). Prefer per-user OAuth: when a
+    # user has connected their own GitHub account, their token is used instead.
     github_access_token: str = ""
     github_default_repo: str = ""
     slack_webhook_url: str = ""
+
+    # --- Per-user GitHub OAuth ---
+    # Create an OAuth App at https://github.com/settings/developers
+    # (callback URL must be `{BACKEND_URL}/api/github/callback`).
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    # Optional; defaults to `{BACKEND_URL}/api/github/callback` when unset.
+    github_oauth_callback_url: str = ""
+    # Where to send the browser after the OAuth dance completes (frontend).
+    frontend_url: str = "http://localhost:3000"
+
+    # --- Per-user Slack OAuth ---
+    # Create an app at https://api.slack.com/apps with Bot Token Scope
+    # `chat:write` (and optionally `channels:read`). Callback URL must be
+    # `{BACKEND_URL}/api/slack/callback`.
+    slack_client_id: str = ""
+    slack_client_secret: str = ""
+    # Optional; defaults to `{BACKEND_URL}/api/slack/callback` when unset.
+    slack_oauth_callback_url: str = ""
+
+    # --- Secret encryption (Fernet key for per-user GitHub tokens) ---
+    # Generate with:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    encryption_key: str = ""
 
     # --- Storage (R2/S3, empty for now) ---
     r2_account_id: str = ""

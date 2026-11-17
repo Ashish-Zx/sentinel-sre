@@ -24,7 +24,7 @@ async def test_list_incidents_returns_records(client):
 
 
 async def test_decision_reject_sets_status(client, monkeypatch):
-    async def fake_slack(message):
+    async def fake_slack(message, **kwargs):
         return True
 
     monkeypatch.setattr(incidents_api, "send_slack_alert", fake_slack)
@@ -48,7 +48,7 @@ async def test_decision_approve_opens_pr(client, monkeypatch):
     async def fake_create_pr(*args, **kwargs):
         return "https://github.com/acme/checkout/pull/1"
 
-    async def fake_slack(message):
+    async def fake_slack(message, **kwargs):
         return True
 
     monkeypatch.setattr(incidents_api, "create_draft_pr", fake_create_pr)

@@ -18,6 +18,7 @@ def _client():
     return AsyncOpenAI(
         api_key=settings.inception_api_key,
         base_url=settings.inception_base_url,
+        timeout=45.0,  # fail fast instead of hanging the verifier/agents
     )
 
 

@@ -7,12 +7,12 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core.security import CurrentUser, get_current_user
+from backend.core.security import CurrentUser, decrypt_secret, get_current_user
 from backend.db.session import get_db
 from backend.models.enums import IncidentStatus
 from backend.models.incident import Incident
 from backend.services.investigation import stream_investigation
-from backend.services.mcp import create_draft_pr, send_slack_alert
+from backend.services.mcp import apply_hotfix_direct, create_draft_pr, send_slack_alert
 from backend.services.workspaces import get_or_create_workspace
 
 router = APIRouter(tags=["incidents"])
@@ -57,6 +57,10 @@ class StartIncidentResponse(BaseModel):
 class DecisionRequest(BaseModel):
     approved: bool
     feedback: str | None = None
+    # When True, commit the hotfix directly to the target branch (auto-deploy)
+    # instead of opening a draft PR on a new branch.
+    direct_commit: bool = False
+    target_branch: str | None = None
 
 
 class DecisionResponse(BaseModel):
@@ -111,6 +115,8 @@ async def start_incident(
         status=IncidentStatus.investigating,
     )
     db.add(incident)
+    if body.github_repo_url and not workspace.github_repo_url:
+        workspace.github_repo_url = body.github_repo_url
     await db.commit()
     await db.refresh(incident)
 
@@ -164,27 +170,59 @@ async def decide_incident(
 
     incident.human_feedback = body.feedback
 
+    slack_token = decrypt_secret(workspace.slack_token_encrypted)
+    slack_channel = workspace.slack_channel_id
+
     if not body.approved:
         incident.status = IncidentStatus.rejected
         await db.commit()
         await send_slack_alert(
             f"🚫 SentinelSRE: hotfix for '{incident.title}' was REJECTED.\n"
-            f"Engineer feedback: {body.feedback or 'none provided'}"
+            f"Engineer feedback: {body.feedback or 'none provided'}",
+            token=slack_token,
+            channel=slack_channel,
         )
         return DecisionResponse(status=incident.status, github_pr_url=None)
 
-    # Approved: create a draft PR via GitHub MCP, then notify Slack
+    # Approved: apply the fix via GitHub, then notify Slack
     incident.status = IncidentStatus.resolved
-    pr_url = await create_draft_pr(
-        repo=incident.github_repo_url or "",
-        title=f"Hotfix: {incident.title}",
-        patch=incident.proposed_patch_diff or "",
-        target_file_path=incident.target_file_path or "",
-    )
+    # Prefer the user's own connected GitHub token; fall back to the global one.
+    user_token = decrypt_secret(workspace.github_pat_encrypted)
+    repo = incident.github_repo_url or workspace.github_repo_url or ""
+    patch = incident.proposed_patch_diff or ""
+    target_file_path = incident.target_file_path or ""
+
+    pr_url: str | None = None
+    if body.direct_commit:
+        # Commit directly to the branch (defaults to the repo default branch).
+        commit_url = await apply_hotfix_direct(
+            repo=repo,
+            title=f"Hotfix: {incident.title}",
+            patch=patch,
+            target_file_path=target_file_path,
+            branch=body.target_branch,
+            access_token=user_token,
+        )
+        if commit_url:
+            pr_url = commit_url
+
+    if pr_url is None:
+        # Fall back to a draft PR (new branch) when direct commit wasn't chosen
+        # or failed.
+        pr_url = await create_draft_pr(
+            repo=repo,
+            title=f"Hotfix: {incident.title}",
+            patch=patch,
+            target_file_path=target_file_path,
+            access_token=user_token,
+        )
+
     incident.github_pr_url = pr_url
     await db.commit()
     await send_slack_alert(
         f"✅ SentinelSRE: hotfix for '{incident.title}' approved.\n"
-        f"Draft PR opened: {pr_url}"
+        f"{'Direct commit' if body.direct_commit else 'Draft PR'} opened: {pr_url}",
+        token=slack_token,
+        channel=slack_channel,
     )
     return DecisionResponse(status=incident.status, github_pr_url=pr_url)

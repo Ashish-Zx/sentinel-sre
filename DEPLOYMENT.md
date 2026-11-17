@@ -39,7 +39,10 @@ or run `render blueprint launch` with `render.yaml`.
 | `DATABASE_URL` | Neon connection string (step 1) |
 | `CLERK_JWKS_URL`, `CLERK_ISSUER` | from `backend/.env` |
 | `INCEPTION_API_KEY`, `INCEPTION_BASE_URL`, `LLM_MODEL` | LLM provider |
-| `GITHUB_ACCESS_TOKEN`, `GITHUB_DEFAULT_REPO` | for auto hotfix PRs |
+| `GITHUB_ACCESS_TOKEN`, `GITHUB_DEFAULT_REPO` | *optional* shared fallback for auto hotfix PRs |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `ENCRYPTION_KEY` | per-user GitHub OAuth (recommended) |
+| `GITHUB_OAUTH_CALLBACK_URL`, `FRONTEND_URL` | OAuth callback + post-connect redirect |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_OAUTH_CALLBACK_URL` | per-user Slack OAuth |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook |
 | `R2_*` | Cloudflare R2 credentials |
 | `UPSTASH_REDIS_REST_URL/TOKEN` | optional rate limiting |
@@ -85,10 +88,52 @@ or run `render blueprint launch` with `render.yaml`.
 2. Go to **Knowledge Vault** → upload a `.log` file → confirm it shows `indexed`.
 3. Create an incident (**New Incident**) → watch the **War Room** stream the 4
    parallel specialists, the synthesizer, and the L4 verifier.
-4. Approve the hotfix → the backend opens a **draft PR** on `GITHUB_DEFAULT_REPO`
-   and posts to Slack.
+4. Approve the hotfix → the backend opens a **draft PR** using the user's own
+   connected GitHub account (falls back to `GITHUB_DEFAULT_REPO` if the user
+   hasn't connected one) and posts to Slack.
 5. Check `dashboard/finops` — it should show real cost/latency from the
    `llm_traces` table.
+
+---
+
+## 6b. Per-user GitHub connections (OAuth)
+
+By default every user would share `GITHUB_ACCESS_TOKEN`. To let each user connect
+**their own** GitHub account:
+
+1. Create a GitHub **OAuth App** at https://github.com/settings/developers
+   - **Authorization callback URL** = `https://<your-backend>/api/github/callback`
+   - Scope requested automatically: `repo` (read/write for draft PRs).
+2. Add to the backend env: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+   `GITHUB_OAUTH_CALLBACK_URL` (or let it default), `FRONTEND_URL`.
+3. Set `ENCRYPTION_KEY` (Fernet key). Generate with:
+   `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+   - This key encrypts each user's token at rest; keep it secret and stable.
+4. Users click **Connect GitHub** on the dashboard → OAuth flow → their token is
+   stored encrypted on their workspace. Incident PRs then use *their* identity.
+
+The `github_oauth_states` table (added by migration) tracks in-flight OAuth
+flows; state rows are one-time and deleted after the callback.
+
+---
+
+## 6c. Per-user Slack notifications (OAuth)
+
+By default notifications use the shared `SLACK_WEBHOOK_URL`. To let each user
+connect **their own** Slack workspace/channel:
+
+1. Create a Slack app at https://api.slack.com/apps → **OAuth & Permissions**
+   - **Bot Token Scopes**: `chat:write`, `channels:read`
+   - **Redirect URL**: `https://<your-backend>/api/slack/callback`
+   - Install the app to your workspace.
+2. Add to the backend env: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`,
+   `SLACK_OAUTH_CALLBACK_URL` (or let it default), `FRONTEND_URL`.
+3. Users click **Connect Slack** on the dashboard → authorize → pick a notify
+   channel. Incident notifications then post using their bot token.
+
+The `slack_oauth_states` table and `slack_token_encrypted` /
+`slack_team_name` workspace columns are added by migration; the token is stored
+encrypted with `ENCRYPTION_KEY`.
 
 ---
 

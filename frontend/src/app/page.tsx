@@ -60,7 +60,7 @@ export default function Home() {
 
         <div className="motion-enter motion-delay-2 mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            href="/sign-in"
+            href="/dashboard"
             className="btn btn-primary h-11 px-6 text-sm"
           >
             Open the war room

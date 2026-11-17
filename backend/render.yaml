@@ -35,6 +35,22 @@ services:
         sync: false
       - key: GITHUB_DEFAULT_REPO
         sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false        # GitHub OAuth App (per-user connections)
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_OAUTH_CALLBACK_URL
+        sync: false        # Optional; defaults to {BACKEND_URL}/api/github/callback
+      - key: FRONTEND_URL
+        value: https://your-frontend.onrender.com
+      - key: ENCRYPTION_KEY
+        sync: false        # Fernet key for encrypting per-user GitHub tokens
+      - key: SLACK_CLIENT_ID
+        sync: false        # Slack OAuth App (per-user connections)
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_OAUTH_CALLBACK_URL
+        sync: false        # Optional; defaults to {BACKEND_URL}/api/slack/callback
       - key: SLACK_WEBHOOK_URL
         sync: false
       - key: R2_ACCOUNT_ID

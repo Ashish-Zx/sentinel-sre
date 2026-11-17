@@ -1,6 +1,7 @@
-import { Activity, BookOpen, DollarSign, ScrollText, ShieldAlert } from "lucide-react";
+import { Activity, BookOpen, DollarSign, ScrollText } from "lucide-react";
 import Link from "next/link";
 import AuthActions from "@/components/auth-actions";
+import BrandMark from "@/components/brand-mark";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "War Room", icon: Activity },
@@ -15,7 +16,7 @@ export default function AuthHeader() {
       <div className="flex items-center gap-7">
         <Link href="/" className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-signal-edge bg-signal-dim text-signal">
-            <ShieldAlert className="h-4 w-4" />
+            <BrandMark className="h-7 w-7" />
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-sm font-semibold tracking-tight text-ink">

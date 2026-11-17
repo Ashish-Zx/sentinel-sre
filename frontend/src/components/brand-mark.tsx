@@ -1,0 +1,33 @@
+type BrandMarkProps = {
+  className?: string;
+};
+
+export default function BrandMark({ className = "h-8 w-8" }: BrandMarkProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M16 2.5 27 6.8v8.4c0 6.8-4.4 11.6-11 14.3C9.4 26.8 5 22 5 15.2V6.8L16 2.5Z"
+        fill="currentColor"
+        fillOpacity=".14"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M10.2 12.2c0-1.6 1.3-2.7 3.2-2.7h4.1c1.8 0 3.1 1 3.1 2.5 0 1.2-.8 2-2.1 2.4l-3.9 1.1c-.7.2-1 .5-1 1 0 .6.5 1 1.3 1h2.3c.8 0 1.4-.4 1.6-1.1l1.9.5c-.4 1.7-1.7 2.7-3.6 2.7h-2.5c-2 0-3.4-1.1-3.4-2.8 0-1.3.8-2.2 2.4-2.7l3.8-1c.6-.2.9-.5.9-.9 0-.5-.4-.8-1.1-.8h-3.8c-.7 0-1.2.3-1.3.9l-1.9-.1Z"
+        fill="currentColor"
+      />
+      <path
+        d="M9.8 22.4h12.4"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}

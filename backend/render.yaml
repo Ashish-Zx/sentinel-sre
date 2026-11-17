@@ -24,9 +24,9 @@ services:
       - key: DATABASE_URL
         sync: false        # Your Neon/Supabase connection string
       - key: CLERK_JWKS_URL
-        sync: false
+        value: https://clerk.sentinelsre.live/.well-known/jwks.json
       - key: CLERK_ISSUER
-        sync: false
+        value: https://clerk.sentinelsre.live
       - key: INCEPTION_API_KEY
         sync: false
       - key: INCEPTION_BASE_URL

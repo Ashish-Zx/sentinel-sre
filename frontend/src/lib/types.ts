@@ -99,6 +99,8 @@ export interface StartIncidentResponse {
 export interface HitlDecisionRequest {
   approved: boolean;
   feedback?: string;
+  direct_commit?: boolean;
+  target_branch?: string;
 }
 
 export interface HitlDecisionResponse {

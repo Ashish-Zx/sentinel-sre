@@ -34,9 +34,20 @@ export default function IncidentWarRoom({ incidentId }: { incidentId: string }) 
     );
   }
 
-  async function handleApprove() {
+  async function handleApprove(opts: {
+    directCommit: boolean;
+    targetBranch?: string;
+  }) {
     if (!incident) return;
-    const res = await submitHitlDecision(incident.id, { approved: true }, getToken);
+    const res = await submitHitlDecision(
+      incident.id,
+      {
+        approved: true,
+        direct_commit: opts.directCommit,
+        target_branch: opts.targetBranch,
+      },
+      getToken
+    );
     setIncident({
       ...incident,
       status: res.status,

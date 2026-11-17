@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ExternalLink, GitPullRequest, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, GitBranch, GitPullRequest, XCircle } from "lucide-react";
 import { useState } from "react";
 import type { Incident } from "@/lib/types";
 
@@ -10,17 +10,22 @@ export default function HitlActionBar({
   onReject,
 }: {
   incident: Incident;
-  onApprove: () => Promise<void>;
+  onApprove: (opts: { directCommit: boolean; targetBranch?: string }) => Promise<void>;
   onReject: (feedback: string) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [delivery, setDelivery] = useState<"draft" | "direct">("draft");
+  const [branch, setBranch] = useState("");
 
   async function handleApproveClick() {
     setBusy(true);
     try {
-      await onApprove();
+      await onApprove({
+        directCommit: delivery === "direct",
+        targetBranch: delivery === "direct" && branch.trim() ? branch.trim() : undefined,
+      });
     } finally {
       setBusy(false);
     }
@@ -47,7 +52,7 @@ export default function HitlActionBar({
               Approved &amp; Executed via GitHub MCP + Slack MCP
             </div>
             <div className="text-[11px] text-ink-2">
-              Draft Pull Request opened and outcome saved to Episodic Memory (incidents SQL table).
+              Fix delivered to GitHub and outcome saved to Episodic Memory (incidents SQL table).
             </div>
           </div>
         </div>
@@ -103,7 +108,28 @@ export default function HitlActionBar({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-lg border border-[#e6cf9a] bg-white px-3 py-1.5">
+            <GitBranch className="h-3.5 w-3.5 text-[#7a4d00]" />
+            <select
+              aria-label="Delivery mode"
+              value={delivery}
+              onChange={(e) => setDelivery(e.target.value as "draft" | "direct")}
+              className="bg-transparent text-xs font-medium text-[#7a4d00] outline-none"
+            >
+              <option value="draft">Draft PR (new branch)</option>
+              <option value="direct">Commit directly to branch</option>
+            </select>
+            {delivery === "direct" && (
+              <input
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                placeholder="branch (default: main)"
+                className="w-36 font-mono text-[11px] text-ink outline-none"
+              />
+            )}
+          </div>
+
           <button
             type="button"
             disabled={busy}
@@ -120,8 +146,16 @@ export default function HitlActionBar({
             onClick={handleApproveClick}
             className="btn btn-primary h-9 px-4 text-xs"
           >
-            <GitPullRequest className="h-4 w-4" />
-            {busy ? "Executing MCP Tools…" : "Approve & Open Hotfix Draft PR"}
+            {delivery === "direct" ? (
+              <GitBranch className="h-4 w-4" />
+            ) : (
+              <GitPullRequest className="h-4 w-4" />
+            )}
+            {busy
+              ? "Executing MCP Tools…"
+              : delivery === "direct"
+                ? "Approve & Commit to Branch"
+                : "Approve & Open Hotfix Draft PR"}
           </button>
         </div>
       </div>

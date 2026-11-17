@@ -19,7 +19,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: CORS_ORIGINS
-        value: '["https://autoservicepro7.vercel.app"]'
+        value: '["https://sentinel-sre-frontend.vercel.app"]'
       - key: DATABASE_URL
         sync: false        # Your Neon/Supabase connection string
       - key: CLERK_JWKS_URL
@@ -45,7 +45,7 @@ services:
       - key: GITHUB_OAUTH_CALLBACK_URL
         sync: false        # Optional; defaults to {BACKEND_URL}/api/github/callback
       - key: FRONTEND_URL
-        value: https://autoservicepro7.vercel.app
+        value: https://sentinel-sre-frontend.vercel.app
       - key: ENCRYPTION_KEY
         sync: false        # Fernet key for encrypting per-user GitHub tokens
       - key: SLACK_CLIENT_ID

@@ -36,3 +36,39 @@ def test_deterministic_fix_keyerror():
 def test_deterministic_fix_returns_none_for_unhandled():
     content = "a\nprint(1)\nb\n"
     assert _deterministic_fix(content, "Some weird error", "x.py", 2) is None
+
+
+def test_error_class_token_extracts_typeerror_class():
+    from backend.services.investigation import _error_class_token
+
+    assert (
+        _error_class_token("TypeError: 'PromoInfo' object is not subscriptable")
+        == "PromoInfo"
+    )
+    assert _error_class_token("KeyError: 'discount_code'") == "discount_code"
+    assert _error_class_token("some other error") is None
+
+
+def test_deterministic_fix_without_line_number_single_subscript():
+    from backend.services.investigation import _deterministic_fix
+
+    content = (
+        "import uuid\n"
+        "class PromoInfo: pass\n"
+        "rate = promo_info[\"discount_rate\"]\n"
+        "print(rate)\n"
+    )
+    error = "TypeError: 'PromoInfo' object is not subscriptable"
+    patch = _deterministic_fix(content, error, "app/services/checkout_service.py", None)
+    assert patch is not None
+    fixed = apply_patch_for_test(content, patch)
+    assert "promo_info.discount_rate" in fixed
+    assert 'promo_info["discount_rate"]' not in fixed
+
+
+def test_deterministic_fix_without_line_ambiguous_returns_none():
+    from backend.services.investigation import _deterministic_fix
+
+    content = 'x["a"]\ny["b"]\n'
+    assert _deterministic_fix(content, "TypeError: 'X' object is not subscriptable", "x.py", None) is None
+

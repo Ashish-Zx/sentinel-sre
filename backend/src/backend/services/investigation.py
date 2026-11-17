@@ -208,6 +208,62 @@ def _build_single_line_patch(path: str, line: int, old_line: str, new_line: str)
     )
 
 
+def _error_class_token(error: str) -> str | None:
+    """Extract the offending class/identifier name from common error messages."""
+    m = re.search(r"'([A-Za-z_]\w*)' object is not subscriptable", error)
+    if m:
+        return m.group(1)
+    m = re.search(r"KeyError:\s*'(\w+)'", error)
+    return m.group(1) if m else None
+
+
+async def _locate_source_file(
+    token: str, repo: str, ref: str | None, query: str
+) -> str | None:
+    """Find a source file in the repo mentioning ``query`` (GitHub code search)."""
+    repo = _normalize_repo(repo)
+    if not repo:
+        return None
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(
+                f"{_GH_API}/search/code",
+                headers=headers,
+                params={"q": f"repo:{repo} {query}", "per_page": 20},
+            )
+            if r.status_code != 200:
+                return None
+            items = r.json().get("items", [])
+            if not items:
+                return None
+            # Prefer files with checkout/service in the path (most relevant).
+            items.sort(
+                key=lambda it: (
+                    0 if ("checkout" in it["path"] or "service" in it["path"]) else 1,
+                    it["path"],
+                )
+            )
+            return items[0]["path"]
+    except Exception:
+        return None
+
+
+def _scan_subscript_lines(file_content: str) -> list[tuple[int, str]]:
+    """Return (line number, line) for lines containing a `x["key"]` subscript."""
+    found: list[tuple[int, str]] = []
+    pat = re.compile(r"[A-Za-z_]\w*\[['\"][\w]+['\"]\]")
+    for idx, line in enumerate(file_content.splitlines(), start=1):
+        if line.strip().startswith("#"):
+            continue
+        if pat.search(line):
+            found.append((idx, line))
+    return found
+
+
 def _deterministic_fix(
     file_content: str,
     error: str,
@@ -220,14 +276,23 @@ def _deterministic_fix(
       ``obj.key`` (attribute access).
     - KeyError -> replace ``obj["key"]`` with ``obj.get("key")``.
 
-    Returns a unified diff, or None if the pattern can't be handled.
+    When ``line`` is None, it fixes the sole unambiguous subscript line in the
+    file (or returns None if there are zero/many). Returns a unified diff, or
+    None if the pattern can't be handled.
     """
-    if not line:
-        return None
     lines = file_content.splitlines()
-    if not (1 <= line <= len(lines)):
-        return None
-    old_line = lines[line - 1]
+
+    if line is not None:
+        if not (1 <= line <= len(lines)):
+            return None
+        candidates = [(line, lines[line - 1])]
+    else:
+        candidates = _scan_subscript_lines(file_content)
+        if len(candidates) != 1:
+            return None
+
+    old_line = candidates[0][1]
+    line_no = candidates[0][0]
     if old_line.strip().startswith("#"):
         return None
 
@@ -240,7 +305,7 @@ def _deterministic_fix(
 
     if "object is not subscriptable" in error.lower() or "not subscriptable" in error.lower():
         new_line = old_line[: subscript.start()] + f"{expr}.{key}" + old_line[subscript.end():]
-        return _build_single_line_patch(path, line, old_line, new_line)
+        return _build_single_line_patch(path, line_no, old_line, new_line)
 
     if "keyerror" in error.lower():
         new_line = (
@@ -248,7 +313,7 @@ def _deterministic_fix(
             + f'{expr}.get({quote}{key}{quote})'
             + old_line[subscript.end():]
         )
-        return _build_single_line_patch(path, line, old_line, new_line)
+        return _build_single_line_patch(path, line_no, old_line, new_line)
 
     return None
 
@@ -396,10 +461,17 @@ async def stream_investigation(
 
     target_file_path, target_line = _extract_target(context)
     file_content = None
-    if user_token and repo_url and target_file_path:
-        file_content = await _fetch_file_from_github(
-            user_token, repo_url, target_file_path, ref
-        )
+    if user_token and repo_url:
+        if not target_file_path:
+            class_token = _error_class_token(context)
+            if class_token:
+                target_file_path = await _locate_source_file(
+                    user_token, repo_url, ref, class_token
+                )
+        if target_file_path:
+            file_content = await _fetch_file_from_github(
+                user_token, repo_url, target_file_path, ref
+            )
 
     report = ROOT_CAUSE_REPORT
     patch: str | None = None

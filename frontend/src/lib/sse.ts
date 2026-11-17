@@ -277,6 +277,19 @@ export function useIncidentWarRoom(incidentId: string, getToken: TokenGetter) {
                   });
                   setIsStreaming(false);
                 } else if (data.type === "verifier_result") {
+                  // Mark the verifier step done — the backend emits verifier_result
+                  // (not agent_completed) for this step.
+                  setSteps((prev) =>
+                    prev.map((s) =>
+                      s.agent_name === "verifier"
+                        ? {
+                            ...s,
+                            status: "completed",
+                            model_used: data.model_used,
+                          }
+                        : s
+                    )
+                  );
                   setIncident((prev) =>
                     prev
                       ? {

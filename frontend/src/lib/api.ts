@@ -240,6 +240,153 @@ export async function fetchFinOpsSummary(
   }
 }
 
+export interface GithubStatus {
+  connected: boolean;
+  repo_url: string | null;
+}
+
+export interface GithubAuthorizeResponse {
+  url: string;
+  state: string;
+}
+
+/** Start the GitHub OAuth flow: returns the URL to redirect the browser to. */
+export async function getGithubAuthorizeUrl(
+  getToken: TokenGetter
+): Promise<GithubAuthorizeResponse> {
+  return await apiFetch<GithubAuthorizeResponse>(
+    "/api/github/authorize",
+    getToken
+  );
+}
+
+export interface SlackStatus {
+  connected: boolean;
+  team: string | null;
+  channel_id: string | null;
+}
+
+export interface SlackAuthorizeResponse {
+  url: string;
+  state: string;
+}
+
+export interface SlackChannel {
+  id: string;
+  name: string;
+}
+
+export interface SlackChannelsResponse {
+  connected: boolean;
+  channels: SlackChannel[];
+}
+
+export async function getSlackAuthorizeUrl(
+  getToken: TokenGetter
+): Promise<SlackAuthorizeResponse> {
+  return await apiFetch<SlackAuthorizeResponse>(
+    "/api/slack/authorize",
+    getToken
+  );
+}
+
+export async function getSlackStatus(
+  getToken: TokenGetter
+): Promise<SlackStatus> {
+  try {
+    return await apiFetch<SlackStatus>("/api/slack/status", getToken);
+  } catch {
+    return { connected: false, team: null, channel_id: null };
+  }
+}
+
+export async function fetchSlackChannels(
+  getToken: TokenGetter
+): Promise<SlackChannelsResponse> {
+  try {
+    return await apiFetch<SlackChannelsResponse>("/api/slack/channels", getToken);
+  } catch {
+    return { connected: false, channels: [] };
+  }
+}
+
+export async function setSlackChannel(
+  getToken: TokenGetter,
+  channelId: string
+): Promise<SlackStatus> {
+  return await apiFetch<SlackStatus>("/api/slack", getToken, {
+    method: "PATCH",
+    body: JSON.stringify({ channel_id: channelId }),
+  });
+}
+
+export async function disconnectSlack(
+  getToken: TokenGetter
+): Promise<SlackStatus> {
+  return await apiFetch<SlackStatus>("/api/slack", getToken, {
+    method: "DELETE",
+  });
+}
+
+export async function getGithubStatus(
+  getToken: TokenGetter
+): Promise<GithubStatus> {
+  try {
+    return await apiFetch<GithubStatus>("/api/github/status", getToken);
+  } catch {
+    return { connected: false, repo_url: null };
+  }
+}
+
+export interface GithubRepos {
+  connected: boolean;
+  repos: string[];
+}
+
+/** List the connected user's accessible repos (for the repository dropdown). */
+export async function fetchGithubRepos(
+  getToken: TokenGetter
+): Promise<GithubRepos> {
+  try {
+    return await apiFetch<GithubRepos>("/api/github/repos", getToken);
+  } catch {
+    return { connected: false, repos: [] };
+  }
+}
+
+export interface GithubCommit {
+  sha: string;
+  message: string;
+}
+
+export interface GithubCommits {
+  connected: boolean;
+  commits: GithubCommit[];
+}
+
+/** List recent commits for a repo (for the deployed-commit dropdown). */
+export async function fetchGithubCommits(
+  getToken: TokenGetter,
+  repo: string
+): Promise<GithubCommits> {
+  try {
+    return await apiFetch<GithubCommits>(
+      `/api/github/commits?repo=${encodeURIComponent(repo)}`,
+      getToken
+    );
+  } catch {
+    return { connected: false, commits: [] };
+  }
+}
+
+export async function disconnectGithub(
+  getToken: TokenGetter
+): Promise<GithubStatus> {
+  return await apiFetch<GithubStatus>("/api/github", getToken, {
+    method: "DELETE",
+  });
+}
+
 export const SAMPLE_DEMO_INCIDENT: Incident = {
   id: "demo-inc-992",
   workspace_id: "ws-demo-001",

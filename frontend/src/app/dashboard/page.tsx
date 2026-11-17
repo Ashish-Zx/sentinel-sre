@@ -15,13 +15,17 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
+  fetchGithubCommits,
+  fetchGithubRepos,
   fetchIncidents,
   startIncidentInvestigation,
   uploadFileViaPresignedUrl,
 } from "@/lib/api";
 import type { Incident, IncidentStatus } from "@/lib/types";
+import GithubConnect from "@/components/github-connect";
+import SlackConnect from "@/components/slack-connect";
 
 function StatusBadge({ status }: { status: IncidentStatus }) {
   switch (status) {
@@ -63,19 +67,17 @@ export default function DashboardIncidentsPage() {
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
 
-  const [title, setTitle] = useState(
-    "500 KeyError: 'discount_code' on POST /api/checkout"
-  );
-  const [githubRepoUrl, setGithubRepoUrl] = useState(
-    "https://github.com/acme-corp/ecommerce-checkout-api"
-  );
-  const [commitSha, setCommitSha] = useState("9f3a1c2");
-  const [rawStackTrace, setRawStackTrace] = useState(
-    `POST /api/checkout -> 500 Internal Server Error\nFile "/app/api/checkout.py", line 84, in create_order\n    discount = payload["discount_code"]\nKeyError: 'discount_code'`
-  );
+  const [title, setTitle] = useState("");
+  const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [commitSha, setCommitSha] = useState("");
+  const [rawStackTrace, setRawStackTrace] = useState("");
   const [logFile, setLogFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [githubRepos, setGithubRepos] = useState<string[]>([]);
+  const [githubReposLoading, setGithubReposLoading] = useState(false);
+  const [commits, setCommits] = useState<{ sha: string; message: string }[]>([]);
+  const [commitsLoading, setCommitsLoading] = useState(false);
 
   useEffect(() => {
     void fetchIncidents(getToken).then((data) => {
@@ -83,6 +85,52 @@ export default function DashboardIncidentsPage() {
       setLoading(false);
     });
   }, [getToken]);
+
+  function openNewModal() {
+    setShowNewModal(true);
+    setTitle("");
+    setGithubRepoUrl("");
+    setCommitSha("");
+    setRawStackTrace("");
+    setGithubRepos([]);
+    setGithubReposLoading(true);
+    setCommits([]);
+    setCommitsLoading(true);
+  }
+
+  useEffect(() => {
+    if (!showNewModal) return;
+    void fetchGithubRepos(getToken).then((res) => {
+      if (res.connected && res.repos.length) {
+        setGithubRepos(res.repos);
+      }
+      setGithubReposLoading(false);
+    });
+  }, [showNewModal, getToken]);
+
+  useEffect(() => {
+    if (!showNewModal || githubRepos.length === 0 || !githubRepoUrl) return;
+    let cancelled = false;
+    void fetchGithubCommits(getToken, githubRepoUrl).then((res) => {
+      if (cancelled) return;
+      if (res.connected && res.commits.length) {
+        setCommits(res.commits);
+      } else {
+        setCommits([]);
+      }
+      setCommitsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showNewModal, githubRepoUrl, githubRepos.length, getToken]);
+
+  function handleRepoChange(value: string) {
+    setGithubRepoUrl(value);
+    setCommits([]);
+    setCommitsLoading(true);
+    setCommitSha("");
+  }
 
   async function handleSimulateDemoCrash() {
     router.push("/dashboard/incidents/demo-inc-992");
@@ -130,6 +178,13 @@ export default function DashboardIncidentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
+      <Suspense fallback={null}>
+        <GithubConnect getToken={getToken} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SlackConnect getToken={getToken} />
+      </Suspense>
+
       {/* Page header */}
       <div className="page-head">
         <div>
@@ -151,7 +206,7 @@ export default function DashboardIncidentsPage() {
 
           <button
             type="button"
-            onClick={() => setShowNewModal(true)}
+            onClick={openNewModal}
             className="btn btn-secondary h-9 px-4 text-xs"
           >
             <Plus className="h-4 w-4 text-signal" />
@@ -270,30 +325,98 @@ export default function DashboardIncidentsPage() {
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. 500 KeyError in POST /api/checkout"
                   className="input"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <label className="field-label">GitHub Repository URL</label>
-                  <input
-                    type="url"
-                    required
-                    value={githubRepoUrl}
-                    onChange={(e) => setGithubRepoUrl(e.target.value)}
-                    className="input font-mono text-xs"
-                  />
+                  <label className="field-label">GitHub Repository</label>
+                  {githubRepos.length > 0 ? (
+                    <>
+                      <select
+                        value={githubRepoUrl}
+                        onChange={(e) => handleRepoChange(e.target.value)}
+                        className="input font-mono text-xs"
+                      >
+                        <option value="" disabled>
+                          Select a repository…
+                        </option>
+                        {githubRepos.map((repo) => (
+                          <option key={repo} value={repo}>
+                            {repo}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-[11px] text-ink-3">
+                        From your connected GitHub account.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="url"
+                        required={githubRepos.length === 0}
+                        value={githubRepoUrl}
+                        onChange={(e) => setGithubRepoUrl(e.target.value)}
+                        placeholder={
+                          githubReposLoading
+                            ? "Loading your repos…"
+                            : "https://github.com/owner/repo"
+                        }
+                        className="input font-mono text-xs"
+                      />
+                      <p className="mt-1.5 text-[11px] text-ink-3">
+                        {githubReposLoading
+                          ? ""
+                          : "Connect GitHub above to choose from your repositories."}
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div>
-                  <label className="field-label">Deployed Commit SHA</label>
-                  <input
-                    type="text"
-                    value={commitSha}
-                    onChange={(e) => setCommitSha(e.target.value)}
-                    placeholder="e.g. 9f3a1c2"
-                    className="input font-mono text-xs"
-                  />
+                  <label className="field-label">Deployed Commit</label>
+                  {commits.length > 0 ? (
+                    <>
+                      <select
+                        value={commitSha}
+                        onChange={(e) => setCommitSha(e.target.value)}
+                        className="input font-mono text-xs"
+                      >
+                        <option value="" disabled>
+                          Select a commit…
+                        </option>
+                        {commits.map((c) => (
+                          <option key={c.sha} value={c.sha}>
+                            {c.sha.slice(0, 7)} · {c.message}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1.5 text-[11px] text-ink-3">
+                        Most recent commit from the selected repo.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={commitSha}
+                        onChange={(e) => setCommitSha(e.target.value)}
+                        placeholder={
+                          commitsLoading ? "Loading commits…" : "e.g. 9f3a1c2"
+                        }
+                        className="input font-mono text-xs"
+                      />
+                      <p className="mt-1.5 text-[11px] text-ink-3">
+                        {commitsLoading
+                          ? ""
+                          : githubRepos.length > 0
+                            ? "No commits available for this repo."
+                            : "Connect GitHub to pick a commit."}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -304,6 +427,7 @@ export default function DashboardIncidentsPage() {
                   required
                   value={rawStackTrace}
                   onChange={(e) => setRawStackTrace(e.target.value)}
+                  placeholder="Paste your stack trace here…"
                   className="input resize-none font-mono text-xs text-signal"
                 />
                 <p className="mt-1.5 text-[11px] text-ink-3">

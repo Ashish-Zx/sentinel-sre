@@ -176,7 +176,7 @@ export default function KnowledgeAndRulesVaultPage() {
               </div>
               {files.length === 0 ? (
                 <div className="rounded-xl border border-edge bg-surface-1 p-4 font-mono text-xs text-ink-3">
-                  • Checkout_Stripe_Service_Runbook_v2.4.pdf (Indexed · 18 chunks in pgvector)
+                  No knowledge files yet — upload a runbook or crash log above.
                 </div>
               ) : (
                 files.map((f) => (

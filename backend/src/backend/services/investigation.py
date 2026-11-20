@@ -585,9 +585,9 @@ async def stream_investigation(
                 user_token, repo_url, target_file_path, ref
             )
 
-    report = ROOT_CAUSE_REPORT
+    report = ""
     patch: str | None = None
-    final_target = "api/checkout.py"
+    final_target: str | None = None
 
     if file_content is not None and target_file_path:
         final_target = target_file_path
@@ -620,10 +620,23 @@ async def stream_investigation(
                     if draft.get("report"):
                         report = draft["report"]
 
-    # Last resort only if we truly have no usable patch (keeps demo robust).
-    if patch is None:
-        patch = PROPOSED_PATCH_DIFF
-        final_target = "api/checkout.py"
+        if not report:
+            report = (
+                f"### Root Cause Report\nA fix was produced for `{final_target}` "
+                f"(around line {target_line}) based on the provided error context."
+            )
+
+    # If we could not derive a real error signature / repo context, do NOT
+    # fabricate a demo fix — report it honestly instead.
+    if patch is None or final_target is None:
+        report = (
+            "### Unable to Parse Error Signature\n"
+            "No recognizable stack trace, error signature, or repository context was "
+            "provided, so no root cause, hotfix patch, or escalation was produced. "
+            "Paste a real stack trace (and connect GitHub with a commit SHA) to run "
+            "the full investigation."
+        )
+        final_target = None
 
     yield _event(
         {
@@ -645,15 +658,24 @@ async def stream_investigation(
     ver = AGENT_STEPS[6]
     await _record_trace(db, incident_id, ver, AgentName.verifier)
 
-    try:
-        verifier = await asyncio.wait_for(
-            verify_patch(context, patch), timeout=70
-        )
-    except (asyncio.TimeoutError, Exception):
+    if patch is None:
         verifier = {
-            "confidence": 90,
-            "critique": VERIFIER_LOCAL_FALLBACK_CRITIQUE,
+            "confidence": 0,
+            "critique": (
+                "Nothing to verify: no fix patch was produced because the input "
+                "could not be parsed into an actionable error."
+            ),
         }
+    else:
+        try:
+            verifier = await asyncio.wait_for(
+                verify_patch(context, patch), timeout=70
+            )
+        except (asyncio.TimeoutError, Exception):
+            verifier = {
+                "confidence": 90,
+                "critique": VERIFIER_LOCAL_FALLBACK_CRITIQUE,
+            }
     confidence = verifier["confidence"]
     critique = verifier["critique"]
 
@@ -680,12 +702,19 @@ async def stream_investigation(
         incident_row.status = IncidentStatus.awaiting_approval
         await db.commit()
 
+    if patch is None:
+        escalation_reason = (
+            "No hotfix was produced (unparseable input); nothing to approve."
+        )
+    else:
+        escalation_reason = ESCALATION_REASON
+
     yield _event(
         {
             "type": "hitl_paused",
             "status": IncidentStatus.awaiting_approval.value,
             "confidence_score": confidence,
-            "escalation_reason": ESCALATION_REASON,
+            "escalation_reason": escalation_reason,
             "root_cause_report": report,
             "proposed_patch_diff": patch,
             "target_file_path": final_target,

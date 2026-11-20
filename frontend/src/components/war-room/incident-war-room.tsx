@@ -21,7 +21,7 @@ const TABS = [
 
 export default function IncidentWarRoom({ incidentId }: { incidentId: string }) {
   const { getToken } = useAuth();
-  const { incident, setIncident, steps, isStreaming, replayDemoInvestigation } =
+  const { incident, setIncident, steps } =
     useIncidentWarRoom(incidentId, getToken);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("rca");
@@ -65,11 +65,7 @@ export default function IncidentWarRoom({ incidentId }: { incidentId: string }) 
     <div className="flex min-h-[calc(100vh-57px)] flex-col">
       <div className="grid flex-1 grid-cols-1 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <AgentTimeline
-            steps={steps}
-            isStreaming={isStreaming}
-            onReplayDemo={() => void replayDemoInvestigation()}
-          />
+          <AgentTimeline steps={steps} />
         </div>
 
         <div className="flex flex-col space-y-5 p-6 lg:col-span-7">

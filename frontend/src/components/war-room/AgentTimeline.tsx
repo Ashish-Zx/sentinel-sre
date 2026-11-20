@@ -1,16 +1,12 @@
 "use client";
 
-import { CheckCircle2, CircleDot, Clock, Cpu, Loader2, RotateCcw } from "lucide-react";
+import { CheckCircle2, CircleDot, Clock, Cpu, Loader2 } from "lucide-react";
 import type { AgentStepState } from "@/lib/types";
 
 export default function AgentTimeline({
   steps,
-  isStreaming,
-  onReplayDemo,
 }: {
   steps: AgentStepState[];
-  isStreaming: boolean;
-  onReplayDemo: () => void;
 }) {
   const totalCost = steps.reduce((acc, s) => acc + (s.cost_usd ?? 0), 0);
 
@@ -27,16 +23,6 @@ export default function AgentTimeline({
             <span className="tabular font-mono text-signal">${totalCost.toFixed(4)}</span>
           </p>
         </div>
-
-        <button
-          type="button"
-          disabled={isStreaming}
-          onClick={onReplayDemo}
-          className="btn btn-secondary h-8 px-2.5 text-[11px]"
-        >
-          <RotateCcw className={`h-3 w-3 ${isStreaming ? "animate-spin" : ""}`} />
-          {isStreaming ? "Running Live…" : "Replay Live Trace"}
-        </button>
       </div>
 
       <div className="space-y-3 overflow-y-auto pr-1">

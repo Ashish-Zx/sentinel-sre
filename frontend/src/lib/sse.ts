@@ -3,7 +3,7 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE_URL, fetchIncidentById, type TokenGetter } from "./api";
-import type { AgentName, AgentStepState, Incident, SseAgentEvent } from "./types";
+import type { AgentStepState, Incident, SseAgentEvent } from "./types";
 
 const INITIAL_STEPS: AgentStepState[] = [
   {
@@ -84,140 +84,7 @@ export function useIncidentWarRoom(incidentId: string, getToken: TokenGetter) {
     );
   }, []);
 
-  const runInteractiveDemoStream = useCallback(async () => {
-    setIsStreaming(true);
-    setStreamError(null);
-    setSteps(INITIAL_STEPS.map((s) => ({ ...s, status: "pending" })));
-
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const demoData = await fetchIncidentById("demo-inc-992", getToken);
-
-    setIncident({
-      ...demoData,
-      status: "investigating",
-      root_cause_report: null,
-      proposed_patch_diff: null,
-      confidence_score: null,
-    });
-
-    // Step 1: Router
-    setSteps((prev) =>
-      prev.map((s) => (s.agent_name === "router" ? { ...s, status: "running" } : s))
-    );
-    await sleep(650);
-    setSteps((prev) =>
-      prev.map((s) =>
-        s.agent_name === "router"
-          ? {
-              ...s,
-              status: "completed",
-              model_used: "claude-3-5-haiku",
-              latency_ms: 680,
-              cost_usd: 0.0008,
-              summary: "Extracted KeyError: 'discount_code' at api/checkout.py:84.",
-            }
-          : s
-      )
-    );
-
-    // Step 2: 4 parallel specialists
-    const parallelAgents: AgentName[] = ["log_agent", "git_agent", "runbook_agent", "security_agent"];
-    setSteps((prev) =>
-      prev.map((s) => (parallelAgents.includes(s.agent_name) ? { ...s, status: "running" } : s))
-    );
-    await sleep(900);
-
-    setSteps((prev) =>
-      prev.map((s) =>
-        s.agent_name === "security_agent"
-          ? {
-              ...s,
-              status: "completed",
-              model_used: "claude-3-5-haiku",
-              latency_ms: 1120,
-              cost_usd: 0.0014,
-              summary: "Flagged api/checkout.py under protected rule. Mandatory HITL gate armed.",
-            }
-          : s.agent_name === "runbook_agent"
-            ? {
-                ...s,
-                status: "completed",
-                model_used: "claude-3-5-haiku",
-                latency_ms: 1310,
-                cost_usd: 0.002,
-                summary: "Matched Checkout Runbook PDF §4.2 (pgvector 0.91 similarity).",
-              }
-            : s
-      )
-    );
-    await sleep(600);
-    setSteps((prev) =>
-      prev.map((s) =>
-        s.agent_name === "log_agent"
-          ? {
-              ...s,
-              status: "completed",
-              model_used: "claude-3-5-haiku",
-              latency_ms: 1420,
-              cost_usd: 0.0024,
-              summary: "Isolated 142 HTTP 500 crashes. Payload sends 'promo_code' while line 84 reads 'discount_code'.",
-            }
-          : s.agent_name === "git_agent"
-            ? {
-                ...s,
-                status: "completed",
-                model_used: "claude-3-5-haiku",
-                latency_ms: 1790,
-                cost_usd: 0.0025,
-                summary: "GitHub MCP found Commit #9f3a1c2 renamed 'discount_code' -> 'promo_code'.",
-              }
-            : s
-      )
-    );
-
-    // Step 3: Synthesizer
-    setSteps((prev) =>
-      prev.map((s) => (s.agent_name === "synthesizer" ? { ...s, status: "running" } : s))
-    );
-    await sleep(1200);
-    setSteps((prev) =>
-      prev.map((s) =>
-        s.agent_name === "synthesizer"
-          ? {
-              ...s,
-              status: "completed",
-              model_used: "claude-3-7-sonnet",
-              latency_ms: 4120,
-              cost_usd: 0.0098,
-              summary: "Synthesized Root Cause Report + backward-compatible Unified Git Diff.",
-            }
-          : s
-      )
-    );
-
-    // Step 4: Verifier
-    setSteps((prev) =>
-      prev.map((s) => (s.agent_name === "verifier" ? { ...s, status: "running" } : s))
-    );
-    await sleep(1000);
-    setSteps((prev) =>
-      prev.map((s) =>
-        s.agent_name === "verifier"
-          ? {
-              ...s,
-              status: "completed",
-              model_used: "claude-3-7-sonnet",
-              latency_ms: 3210,
-              cost_usd: 0.0053,
-              summary: "Verified in isolated fresh context: AST valid, resolves KeyError (Confidence: 94%).",
-            }
-          : s
-      )
-    );
-
-    setIncident(demoData);
-    setIsStreaming(false);
-  }, [getToken]);
+  
 
   useEffect(() => {
     let isMounted = true;
@@ -327,6 +194,5 @@ export function useIncidentWarRoom(incidentId: string, getToken: TokenGetter) {
     steps,
     isStreaming,
     streamError,
-    replayDemoInvestigation: runInteractiveDemoStream,
   };
 }

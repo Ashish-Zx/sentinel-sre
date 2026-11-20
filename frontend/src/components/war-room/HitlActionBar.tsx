@@ -105,8 +105,9 @@ export default function HitlActionBar({
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#7a4d00]" />
           <div>
             <div className="text-xs font-semibold text-[#7a4d00]">
-              Escalation Gate Triggered: touches payment/checkout route (Confidence:{" "}
-              {incident.confidence_score ?? 94}%)
+              {incident.escalation_reason
+                ? `${incident.escalation_reason} (Confidence: ${incident.confidence_score ?? 0}%)`
+                : `Escalation Gate Triggered (Confidence: ${incident.confidence_score ?? 0}%)`}
             </div>
             <div className="text-[11px] text-ink-2">
               LangGraph execution paused via <code className="font-mono">interrupt()</code> in

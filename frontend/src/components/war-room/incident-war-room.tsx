@@ -124,6 +124,7 @@ export default function IncidentWarRoom({ incidentId }: { incidentId: string }) 
               <CodeDiffTab
                 targetFilePath={incident.target_file_path}
                 patchDiff={incident.proposed_patch_diff}
+                status={incident.status}
               />
             )}
             {activeTab === "verifier" && <VerifierAuditTab incident={incident} />}

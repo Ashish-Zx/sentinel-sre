@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, FileWarning, GitCommit } from "lucide-react";
+import { FileWarning, GitCommit } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Incident } from "@/lib/types";
 
@@ -21,27 +21,45 @@ const QUICK_CARDS = [
     title: "",
     sub: "",
   },
-  {
-    icon: BookOpen,
-    label: "SEMANTIC MEMORY HIT",
-    tone: "status-violet",
-    iconTone: "text-[#6941c6]",
-    title: "",
-    sub: "",
-  },
 ];
 
 export default function RootCauseTab({ incident }: { incident: Incident }) {
-  const cards = [
-    { ...QUICK_CARDS[0], title: incident.target_file_path ?? "api/checkout.py:84", sub: "KeyError: 'discount_code'" },
-    { ...QUICK_CARDS[1], title: `#${incident.deployed_commit_sha ?? "9f3a1c2"}`, sub: "Renamed discount_code → promo_code" },
-    { ...QUICK_CARDS[2], title: "Checkout Runbook PDF §4.2", sub: "pgvector similarity: 0.91 (Page 4)" },
-  ];
+  const crashSub =
+    incident.error_summary ??
+    incident.raw_error_trace?.split("\n").find((line) => line.trim()) ??
+    null;
+
+  const cards: {
+    icon: typeof FileWarning;
+    label: string;
+    tone: string;
+    iconTone: string;
+    title: string;
+    sub: string;
+  }[] = [];
+
+  if (incident.target_file_path) {
+    cards.push({
+      ...QUICK_CARDS[0],
+      title: incident.target_file_path,
+      sub: crashSub ?? "Crash signature",
+    });
+  }
+  if (incident.deployed_commit_sha) {
+    cards.push({
+      ...QUICK_CARDS[1],
+      title: `#${incident.deployed_commit_sha}`,
+      sub: "Offending commit",
+    });
+  }
+  // Semantic memory hits are not exposed as an incident field yet, so we never
+  // fabricate a placeholder card for them.
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {cards.map((card) => {
+      {cards.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {cards.map((card) => {
           const Icon = card.icon;
           return (
             <div key={card.label} className="panel p-3.5">
@@ -55,8 +73,9 @@ export default function RootCauseTab({ incident }: { incident: Incident }) {
               <div className="mt-0.5 text-[11px] text-ink-3">{card.sub}</div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
 
       <div className="panel p-5">
         {incident.root_cause_report ? (

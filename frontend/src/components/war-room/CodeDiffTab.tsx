@@ -6,9 +6,11 @@ import { useState } from "react";
 export default function CodeDiffTab({
   targetFilePath,
   patchDiff,
+  status,
 }: {
   targetFilePath: string | null;
   patchDiff: string | null;
+  status?: "investigating" | "awaiting_approval" | "resolved" | "rejected";
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -22,7 +24,9 @@ export default function CodeDiffTab({
   if (!patchDiff) {
     return (
       <div className="panel p-12 text-center font-mono text-xs text-ink-3">
-        Generating Unified Git Diff patch…
+        {status === "investigating"
+          ? "Generating Unified Git Diff patch…"
+          : "No hotfix patch was produced for this incident."}
       </div>
     );
   }
@@ -34,7 +38,7 @@ export default function CodeDiffTab({
       <div className="flex items-center justify-between border-b border-edge bg-surface-2/80 px-4 py-2.5">
         <div className="flex items-center gap-2 font-mono text-xs text-ink-2">
           <FileCode2 className="h-4 w-4 text-signal" />
-          {targetFilePath ?? "api/checkout.py"}
+          {targetFilePath ?? "target file"}
           <span className="badge badge-live text-[10px]">AST Syntax Validated</span>
         </div>
 

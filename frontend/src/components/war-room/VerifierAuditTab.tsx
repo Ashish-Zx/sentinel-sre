@@ -46,8 +46,8 @@ export default function VerifierAuditTab({ incident }: { incident: Incident }) {
             The L4 Verifier Node never sees the 4 specialist agents&apos; reasoning chain. It inspects only:
           </p>
           <ul className="space-y-1 pl-4 font-mono text-xs text-ink-2 [list-style:disc]">
-            <li>1. Raw stack trace line (`KeyError: &apos;discount_code&apos;`)</li>
-            <li>2. Raw file from GitHub (`api/checkout.py`)</li>
+            <li>1. Raw stack trace line ({incident.raw_error_trace?.split("\n").find((l) => l.trim()) ?? "n/a"})</li>
+            <li>2. Raw file from GitHub ({incident.target_file_path ?? "none located"})</li>
             <li>3. Proposed Unified Diff + Python AST parse check</li>
           </ul>
         </div>
@@ -58,8 +58,7 @@ export default function VerifierAuditTab({ incident }: { incident: Incident }) {
             Why HITL Escalation Gate Triggered
           </div>
           <p className="text-xs leading-relaxed text-ink-2">
-            {incident.escalation_reason ??
-              "Protected path rule matched: files touching /payments or checkout.py require explicit human approval before opening a GitHub PR."}
+            {incident.escalation_reason ?? "No escalation reason recorded for this incident."}
           </p>
           <div className="flex items-center gap-2 pt-1 font-mono text-[11px]">
             <Lock className="h-3.5 w-3.5" />
@@ -73,7 +72,9 @@ export default function VerifierAuditTab({ incident }: { incident: Incident }) {
           <CheckCircle2 className="h-4 w-4 text-signal" />
           Deterministic Python <code className="font-mono">ast.parse()</code> &amp; line-range validation
         </span>
-        <span className="tabular font-mono text-signal">PASSED (0 retries)</span>
+        <span className="tabular font-mono text-signal">
+          {incident.proposed_patch_diff ? "PASSED (0 retries)" : "N/A — no patch to verify"}
+        </span>
       </div>
     </div>
   );

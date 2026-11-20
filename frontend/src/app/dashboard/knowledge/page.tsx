@@ -16,6 +16,9 @@ import {
   fetchProceduralRules,
   updateProceduralRules,
   uploadFileViaPresignedUrl,
+  deleteKnowledgeFile,
+  clearMemory,
+  resetWorkspaceData,
 } from "@/lib/api";
 import type { FileType, KnowledgeFile, ProceduralRule } from "@/lib/types";
 
@@ -102,6 +105,53 @@ export default function KnowledgeAndRulesVaultPage() {
     setTimeout(() => setRulesSavedMessage(null), 3000);
   }
 
+  async function handleDeleteFile(file: KnowledgeFile) {
+    const confirmed = window.confirm(
+      `Delete "${file.file_name}"? This permanently removes the uploaded file and its memory chunks.`
+    );
+    if (!confirmed) return;
+    try {
+      await deleteKnowledgeFile(file.id, getToken);
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete file");
+    }
+  }
+
+  async function handleClearMemory() {
+    const confirmed = window.confirm(
+      "Clear all memory? This removes all semantic memory chunks and procedural rules (uploaded files are kept)."
+    );
+    if (!confirmed) return;
+    try {
+      await clearMemory(getToken);
+      const defaults = await fetchProceduralRules(getToken);
+      setRules(defaults);
+      window.alert("Memory cleared: semantic chunks and procedural rules removed.");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to clear memory");
+    }
+  }
+
+  async function handleResetAll() {
+    const confirmed = window.confirm(
+      "Delete ALL data for this workspace? This permanently removes every uploaded runbook/doc, memory, rules, and incidents. This cannot be undone."
+    );
+    if (!confirmed) return;
+    try {
+      await resetWorkspaceData(getToken);
+      setFiles([]);
+      setRules({
+        min_confidence_threshold: 85,
+        protected_paths: [],
+        custom_instructions: "",
+      });
+      window.alert("Workspace data deleted.");
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete data");
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-6">
       <div>
@@ -182,16 +232,27 @@ export default function KnowledgeAndRulesVaultPage() {
                 files.map((f) => (
                   <div
                     key={f.id}
-                    className="flex items-center justify-between rounded-xl border border-edge bg-surface-1 px-3.5 py-2.5 text-xs"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-surface-1 px-3.5 py-2.5 text-xs"
                   >
-                    <div>
-                      <div className="font-medium text-ink">{f.file_name}</div>
-                      <div className="font-mono text-[10px] text-ink-3">{f.s3_key}</div>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-ink">{f.file_name}</div>
+                      <div className="truncate font-mono text-[10px] text-ink-3">{f.s3_key}</div>
                     </div>
-                    <span className="badge badge-live font-mono text-[10px]">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {f.ingestion_status}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="badge badge-live font-mono text-[10px]">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {f.ingestion_status}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFile(f)}
+                        className="cursor-pointer text-ink-3 opacity-70 transition hover:text-danger hover:opacity-100"
+                        aria-label={`Delete ${f.file_name}`}
+                        title="Delete file"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -300,8 +361,45 @@ export default function KnowledgeAndRulesVaultPage() {
               <Save className="h-3.5 w-3.5" />
               Save Procedural Memory Rules
             </button>
+            <button
+              type="button"
+              onClick={handleClearMemory}
+              className="btn btn-secondary h-10 w-full px-5 text-xs"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear Memory (semantic chunks + rules)
+            </button>
           </form>
         </div>
+      </div>
+
+      {/* Danger zone: full workspace data reset */}
+      <div className="panel space-y-3 border-red-500/30 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="status-danger flex h-8 w-8 items-center justify-center rounded-lg">
+            <Trash2 className="h-4 w-4" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-ink">Danger Zone</div>
+            <div className="text-[11px] text-ink-3">
+              Permanently remove all data for this workspace
+            </div>
+          </div>
+        </div>
+        <p className="text-[11px] leading-relaxed text-ink-3">
+          Deletes every uploaded runbook/doc (from R2), all semantic memory chunks,
+          procedural rules, and all incidents. Your connected GitHub/Slack
+          credentials are kept. This cannot be undone.
+        </p>
+        <button
+          type="button"
+          onClick={handleResetAll}
+          className="btn h-10 px-5 text-xs"
+          style={{ background: "var(--danger, #dc2626)", color: "#fff" }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete All Data
+        </button>
       </div>
     </div>
   );

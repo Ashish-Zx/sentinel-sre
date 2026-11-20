@@ -21,6 +21,12 @@ def _s3_client():
     )
 
 
+def delete_object(key: str) -> None:
+    """Delete an uploaded object from R2 by its key."""
+    settings = get_settings()
+    _s3_client().delete_object(Bucket=settings.r2_bucket, Key=key)
+
+
 async def create_presigned_upload(
     file_name: str,
     content_type: str,

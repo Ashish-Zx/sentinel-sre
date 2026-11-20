@@ -163,6 +163,43 @@ export async function updateProceduralRules(
   });
 }
 
+export interface ClearMemoryResponse {
+  semantic_chunks_deleted: number;
+  procedural_rules_deleted: number;
+}
+
+export interface ResetWorkspaceResponse {
+  files_deleted: number;
+  memory_chunks_deleted: number;
+  procedural_rules_deleted: number;
+  incidents_deleted: number;
+}
+
+export async function deleteKnowledgeFile(
+  fileId: string,
+  getToken: TokenGetter
+): Promise<void> {
+  await apiFetch<void>(`/api/knowledge/${fileId}`, getToken, {
+    method: "DELETE",
+  });
+}
+
+export async function clearMemory(
+  getToken: TokenGetter
+): Promise<ClearMemoryResponse> {
+  return await apiFetch<ClearMemoryResponse>("/api/memory", getToken, {
+    method: "DELETE",
+  });
+}
+
+export async function resetWorkspaceData(
+  getToken: TokenGetter
+): Promise<ResetWorkspaceResponse> {
+  return await apiFetch<ResetWorkspaceResponse>("/api/workspace/data", getToken, {
+    method: "DELETE",
+  });
+}
+
 export async function fetchIncidents(
   getToken: TokenGetter
 ): Promise<Incident[]> {
